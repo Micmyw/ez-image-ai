@@ -1,11 +1,13 @@
 "use client";
 
+import type { PortraitPackPlacement } from "@repo/config/portrait-packs";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { ChevronRightIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
+import { usePortraitPackAnalytics } from "../lib/use-portrait-pack-analytics";
 import { PackFoil } from "./PackFoil";
 
 import styles from "./portrait-pack.module.css";
@@ -17,11 +19,16 @@ const PortraitPackExperience = dynamic(() =>
 // One invitation at a time even when the same rejection surfaces in two editor panels.
 let openInvitation: symbol | null = null;
 
-export function PortraitPackInvitation() {
+export function PortraitPackInvitation({
+	placement = "editor",
+}: {
+	placement?: Exclude<PortraitPackPlacement, "public-page">;
+}) {
 	const t = useTranslations("portraitPacks");
 	const [instance] = useState(() => Symbol());
 	const [open, setOpen] = useState(false);
 	const [accepted, setAccepted] = useState(false);
+	const analytics = usePortraitPackAnalytics(placement, "invitation", open && !accepted);
 	useEffect(() => {
 		if (!openInvitation) {
 			openInvitation = instance;
@@ -53,7 +60,7 @@ export function PortraitPackInvitation() {
 					<>
 						<DialogTitle className={styles.playTitle}>{t("name")}</DialogTitle>
 						<DialogDescription className="sr-only">{t("pageDescription")}</DialogDescription>
-						<PortraitPackExperience compact />
+						<PortraitPackExperience compact placement={placement} />
 					</>
 				) : (
 					<div className={styles.invitation}>
@@ -67,9 +74,13 @@ export function PortraitPackInvitation() {
 							</DialogDescription>
 							<div className={styles.inviteActions}>
 								<button
+									ref={analytics.ref}
 									type="button"
 									className={styles.primary}
-									onClick={() => setAccepted(true)}
+									onClick={() => {
+										analytics.clicked();
+										setAccepted(true);
+									}}
 								>
 									{t("tryPack")}
 								</button>

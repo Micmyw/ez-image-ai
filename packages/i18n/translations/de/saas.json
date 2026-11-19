@@ -1236,6 +1236,24 @@
 					"capture_request_failed": "Browser erhielt keine erfolgreiche Abbuchungsantwort; Serverergebnis kann abweichen"
 				}
 			},
+			"portraitPacks": {
+				"title": "Porträtpacks",
+				"basis": "Zählt einzelne Browser mit Analyseeinwilligung. Die Klickrate zeigt den Anteil der Browser, die dieselbe Schaltfläche gesehen und betätigt haben.",
+				"placement": "Platzierung",
+				"cta": "Aktion",
+				"exposed": "Browser mit Sichtkontakt",
+				"clicked": "Browser mit Klick",
+				"rate": "Klickrate",
+				"placements": {
+					"homepage": "Startseiten-Dialog",
+					"editor": "Editor-Dialog",
+					"public-page": "Porträtpack-Seite"
+				},
+				"ctas": {
+					"invitation": "Pack ausprobieren",
+					"draw": "Pack öffnen"
+				}
+			},
 			"homepageIdeas": {
 				"title": "Klicks auf Startseiten-Ideen",
 				"basis": "Vorschau- und Erstellen-Klicks werden getrennt gezählt. Besucher werden im gewählten Zeitraum pro Browser einmal gezählt; wiederholte Klicks bleiben in den Gesamtsummen. Bestehende Analyseeinstellungen gelten; interne Zugriffe sind ausgeschlossen.",

@@ -10,6 +10,12 @@ The editor offers the pack after a confirmed image prompt, input or result rejec
 
 Apply `20261119133000_portrait_pack_trial` before deploying the application reader and writer. The receipt table uses the same private append-only application permissions as the guest trial receipts. Keep the v1 card IDs and files available for existing receipts.
 
+## Click-rate measurement
+
+In Admin Analytics → Conversion, Portrait Packs shows invitation and draw click rates separately for the homepage popup, editor popup, and standalone page. An exposure means the relevant enabled CTA was visible in an active tab; a draw click means the user started opening by clicking, tapping, or swiping, regardless of whether the request succeeded. The rate is the number of distinct consented browsers that both saw and activated the same CTA at the same placement, divided by the number that saw it, within the selected time, source and device filters. Internal browsers are excluded.
+
+Events use the existing `growth_event` table and its retention; there is no analytics migration, historical backfill or new third-party tracking. Events record only the placement, CTA and stage using the existing first-party consent and session mechanism, never the blocked content, moderation reason, card, job or trial-request IDs. Trial receipts are separate and do not measure clicks.
+
 ## Artwork
 
 The built-in OpenAI ImageGen tool produced the 36-card library. The prompts covered opaque evening gowns, cocktail dresses with black tights and heels, and opaque swimwear at a beach or pool. The three replacement portraits use blue, lilac and cherry short dresses with distinct winking, turning and seated expressions. The next sheet adds nine poses in a bar, theater, gallery, atrium and hotel. The prompts specified fictional adult models and ordinary fashion photography. The photos were exported as WebP under `apps/saas/public/images/portrait-packs/v1`. A new pack includes a playful, an evening and a resort look, plus two other cards.

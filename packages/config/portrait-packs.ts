@@ -3,6 +3,14 @@ export const PORTRAIT_PACK_SIZE = 5;
 export const PORTRAIT_PACK_TRIAL_LIMIT = 2;
 export const PORTRAIT_PACK_STYLES = ["playful", "evening", "resort"] as const;
 
+export const PORTRAIT_PACK_OBSERVED = "portrait_pack_observed";
+export const PORTRAIT_PACK_PLACEMENTS = ["homepage", "editor", "public-page"] as const;
+export const PORTRAIT_PACK_CTAS = ["invitation", "draw"] as const;
+export const PORTRAIT_PACK_OBSERVATION_STAGES = ["impression", "clicked"] as const;
+export type PortraitPackPlacement = (typeof PORTRAIT_PACK_PLACEMENTS)[number];
+export type PortraitPackCta = (typeof PORTRAIT_PACK_CTAS)[number];
+export type PortraitPackObservationStage = (typeof PORTRAIT_PACK_OBSERVATION_STAGES)[number];
+
 // Keep the v1 pool stable for request replay and saved trial packs.
 export const PORTRAIT_PACK_CARDS = {
 	"cobalt-gallery": { title: "Cobalt Gallery", color: "#b3c2ff", style: "evening" },

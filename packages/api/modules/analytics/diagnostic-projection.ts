@@ -1,4 +1,5 @@
 import { GENERATION_JOURNEY_OBSERVED } from "@repo/config/generation-journey";
+import { PORTRAIT_PACK_OBSERVED } from "@repo/config/portrait-packs";
 import type { GrowthAnalyticsEvent } from "@repo/utils/lib/growth-analytics";
 
 /** Project only validated scalar diagnostics; never persist the inbound properties object. */
@@ -11,6 +12,9 @@ export function growthDiagnosticProjection(
 			...properties.journey,
 			...(properties.task_hash ? { jobHash: properties.task_hash } : {}),
 		};
+	}
+	if (event.name === PORTRAIT_PACK_OBSERVED && properties.portraitPack) {
+		return properties.portraitPack;
 	}
 	const legacy = {
 		...(properties.task_hash ? { task_hash: properties.task_hash } : {}),

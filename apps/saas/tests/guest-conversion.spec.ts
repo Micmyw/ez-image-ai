@@ -131,8 +131,23 @@ test("guest selection prepares before Generate and reuses the upload with the ed
 test("a confirmed image rejection offers an independent portrait pack without submitting a job", async ({
 	page,
 	baseURL,
+	context,
 }) => {
 	const fixture = await installGuestBoundaries(page, baseURL, []);
+	await context.addCookies([
+		{ name: "consent", value: "true", url: baseURL! },
+		{ name: "consent_version", value: "2", url: baseURL! },
+	]);
+	const observations: unknown[] = [];
+	await page.route("**/api/analytics/policy", (route) =>
+		route.fulfill({ json: { requiresOptIn: true, privacySignal: false } }),
+	);
+	await page.route("**/api/analytics/events", (route) => {
+		const body = route.request().postDataJSON();
+		if (body.event.name === "portrait_pack_observed")
+			observations.push(body.event.properties.portraitPack);
+		return route.fulfill({ json: { accepted: true } });
+	});
 	await page.route("**/api/media/guest-drafts/upload-completions", (route) =>
 		route.fulfill({ json: { status: "FAILED", code: "GUEST_UPLOAD_CONTENT_REJECTED" } }),
 	);
@@ -147,9 +162,20 @@ test("a confirmed image rejection offers an independent portrait pack without su
 	await page.locator('[data-test="landing-generate"]').click();
 	const invitation = page.getByRole("dialog", { name: "Want to open a portrait pack?" });
 	await expect(invitation).toBeVisible();
+	await expect
+		.poll(() => observations)
+		.toEqual([{ placement: "homepage", cta: "invitation", stage: "impression" }]);
 	expect(accessReads).toBe(0);
 	await invitation.getByRole("button", { name: "Try a pack" }).click();
 	await expect(page.locator('[data-test="portrait-pack-open"]')).toBeEnabled();
+	await expect
+		.poll(() => observations)
+		.toEqual(
+			expect.arrayContaining([
+				{ placement: "homepage", cta: "invitation", stage: "clicked" },
+				{ placement: "homepage", cta: "draw", stage: "impression" },
+			]),
+		);
 	expect(accessReads).toBe(1);
 	expect(fixture.submissions).toHaveLength(0);
 });

@@ -1236,6 +1236,24 @@
 					"capture_request_failed": "Browser did not receive a successful capture response; server outcome may differ"
 				}
 			},
+			"portraitPacks": {
+				"title": "Portrait Packs",
+				"basis": "Counts distinct browsers with analytics consent. Click rate is browsers that saw and activated the same button, divided by browsers that saw it.",
+				"placement": "Placement",
+				"cta": "Action",
+				"exposed": "Exposed browsers",
+				"clicked": "Clicked browsers",
+				"rate": "Click rate",
+				"placements": {
+					"homepage": "Homepage popup",
+					"editor": "Editor popup",
+					"public-page": "Portrait Packs page"
+				},
+				"ctas": {
+					"invitation": "Try a pack",
+					"draw": "Open pack"
+				}
+			},
 			"homepageIdeas": {
 				"title": "Homepage idea clicks",
 				"basis": "Preview clicks and Create clicks are counted separately. Visitors are deduplicated by browser within the selected period; repeat clicks remain in totals. Uses existing analytics preferences and excludes internal traffic.",

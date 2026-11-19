@@ -1236,6 +1236,24 @@
 					"capture_request_failed": "El navegador no recibió una respuesta de captura correcta; el resultado del servidor puede diferir"
 				}
 			},
+			"portraitPacks": {
+				"title": "Packs de retratos",
+				"basis": "Cuenta navegadores distintos con consentimiento para analítica. La tasa de clics es la proporción que vio y activó el mismo botón.",
+				"placement": "Ubicación",
+				"cta": "Acción",
+				"exposed": "Navegadores expuestos",
+				"clicked": "Navegadores que hicieron clic",
+				"rate": "Tasa de clics",
+				"placements": {
+					"homepage": "Ventana de inicio",
+					"editor": "Ventana del editor",
+					"public-page": "Página de packs"
+				},
+				"ctas": {
+					"invitation": "Probar un pack",
+					"draw": "Abrir pack"
+				}
+			},
 			"homepageIdeas": {
 				"title": "Clics en las ideas de inicio",
 				"basis": "Los clics de vista previa y de creación se cuentan por separado. Los visitantes se cuentan una vez por navegador en el período seleccionado; los clics repetidos permanecen en los totales. Se respetan las preferencias de análisis existentes y se excluye el tráfico interno.",

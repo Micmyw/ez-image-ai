@@ -38,6 +38,37 @@ beforeEach(() => {
 	mocks.record.mockReset().mockResolvedValue({ accepted: true });
 });
 describe("consented first-party ingestion", () => {
+	it("stores only portrait-CTA dimensions and denies observations without analytics consent", async () => {
+		const portraitPack = { placement: "public-page", cta: "draw", stage: "clicked" };
+		const body = {
+			...input,
+			path: "/portrait-packs?lang=de&unused=sensitive",
+			event: {
+				name: "portrait_pack_observed",
+				properties: { anonymousSessionHash: hash, portraitPack },
+			},
+		};
+		expect(await invoke(body)).toEqual({ accepted: true });
+		expect(mocks.record).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "portrait_pack_observed",
+				path: "/portrait-packs",
+				diagnostics: portraitPack,
+			}),
+		);
+		mocks.record.mockClear();
+		expect(await invoke(body, { cookie: "consent=false; consent_version=2" })).toEqual({
+			accepted: false,
+		});
+		expect(
+			await invoke(body, {
+				cookie: `consent=regional; consent_version=2; ezpic_analytics_session=${hash}`,
+			}),
+		).toEqual({ accepted: false });
+		expect(await invoke(body, { "sec-gpc": "1" })).toEqual({ accepted: false });
+		expect(mocks.record).not.toHaveBeenCalled();
+	});
+
 	it("preserves hashed task linkage and latency buckets instead of dropping them", async () => {
 		await invoke({
 			...input,

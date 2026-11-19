@@ -4,6 +4,7 @@ import {
 	PORTRAIT_PACK_CARDS,
 	PORTRAIT_PACK_PATH,
 	type PortraitCardKey,
+	type PortraitPackPlacement,
 } from "@repo/config/portrait-packs";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +14,7 @@ import Link from "next/link";
 import { type CSSProperties, useRef, useState } from "react";
 
 import { publicPagePath } from "../../public-content/lib/indexing";
+import { usePortraitPackAnalytics } from "../lib/use-portrait-pack-analytics";
 import { PackFoil } from "./PackFoil";
 
 import styles from "./portrait-pack.module.css";
@@ -27,7 +29,13 @@ function portraitDimensions(key: PortraitCardKey) {
 		: { width: 339, height: 510 };
 }
 
-export function PortraitPackExperience({ compact = false }: { compact?: boolean }) {
+export function PortraitPackExperience({
+	compact = false,
+	placement = "public-page",
+}: {
+	compact?: boolean;
+	placement?: PortraitPackPlacement;
+}) {
 	const t = useTranslations("portraitPacks");
 	const locale = useLocale();
 	const path = publicPagePath(PORTRAIT_PACK_PATH, locale);
@@ -47,10 +55,12 @@ export function PortraitPackExperience({ compact = false }: { compact?: boolean 
 	const state = access.data?.state;
 	const canOpen = state === "guestTrial" || state === "accountTrial" || state === "unlocked";
 	const cards = reveal?.cards ?? (preparingNext && canOpen ? null : access.data?.cards);
+	const analytics = usePortraitPackAnalytics(placement, "draw", canOpen && !cards && !tearing);
 
 	async function openPack() {
 		if (!canOpen || cards || inFlight.current) return;
 		inFlight.current = true;
+		analytics.clicked();
 		setOpenFailed(false);
 		setTearing(true);
 		try {
@@ -137,6 +147,7 @@ export function PortraitPackExperience({ compact = false }: { compact?: boolean 
 					</ul>
 				) : (
 					<button
+						ref={analytics.ref}
 						type="button"
 						aria-label={t("open")}
 						className={styles.packButton}

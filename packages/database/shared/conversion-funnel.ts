@@ -1,4 +1,5 @@
 import { EXPERIMENT_RETENTION_MS } from "@repo/config/growth-experiments";
+import { PORTRAIT_PACK_OBSERVED } from "@repo/config/portrait-packs";
 
 import {
 	ADMIN_ANALYTICS_RANGES,
@@ -12,6 +13,7 @@ import { buildConversionExperiments } from "./conversion-experiments";
 import { buildGenerationJourney } from "./conversion-journey";
 import type { GrowthEventInput } from "./growth-events";
 import { buildHomepageIdeaReport } from "./homepage-idea-report";
+import { buildPortraitPackReport } from "./portrait-pack-report";
 
 export interface ConversionInput {
 	range: AdminAnalyticsRange;
@@ -250,7 +252,9 @@ export function buildConversionFunnel(
 			.length;
 	const sourceValues = new Set([
 		...cohort.map((u) => registrationSource(u.registrationAttribution)),
-		...events.filter((e) => e.name === "page_viewed").map((e) => e.source ?? "unknown"),
+		...events
+			.filter((e) => e.name === "page_viewed" || e.name === PORTRAIT_PACK_OBSERVED)
+			.map((e) => e.source ?? "unknown"),
 	]);
 	const rows = [...sourceValues]
 		.sort()
@@ -314,6 +318,7 @@ export function buildConversionFunnel(
 		since: from.toISOString(),
 		asOf: to.toISOString(),
 		homepageIdeas: buildHomepageIdeaReport(productEvents),
+		portraitPacks: buildPortraitPackReport(productEvents),
 		generationJourney: buildGenerationJourney(productEvents, observations.events),
 		experiments: buildConversionExperiments(facts, observations.events, from, to, input),
 		activity: buildConversionActivity(facts, events, observations.jobs, from, to, input),

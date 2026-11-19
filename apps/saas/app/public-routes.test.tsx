@@ -439,7 +439,10 @@ describe("consolidated public route contract", () => {
 			} else if (key === "seedream-5-5") {
 				expect(markup).toContain('data-seedream-demo=""');
 				expect(markup).toContain("/images/models/seedream-5-5/media-io-demo-poster.jpg");
-				expect(markup).toContain("Demo: Media.io");
+				expect(markup).toContain('aria-label="Seedream 5.5 editing demo"');
+				expect(markup).toContain("One photo. A new look with every edit.");
+				expect(markup).not.toContain("Demo: Media.io");
+				expect(markup).not.toContain('href="https://www.media.io/');
 				expect(markup.indexOf('id="tool-prompts-title"')).toBeLessThan(
 					markup.indexOf('id="tool-steps-title"'),
 				);

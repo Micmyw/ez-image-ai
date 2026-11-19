@@ -1,3 +1,5 @@
+import { PORTRAIT_PACK_PATH } from "@repo/config/portrait-packs";
+
 import {
 	collectFirstTouchAttribution,
 	sanitizeAttributionPath,
@@ -38,9 +40,14 @@ const authenticationPaths = new Set([
 	"/auth/reset-password",
 ]);
 
-/** Auth paths are diagnostic only. Callback codes, return URLs and private path segments are omitted. */
+/** Extra first-party diagnostic paths do not enable vendor analytics or expose query values. */
 export function growthAnalyticsPath(url: URL): string | null {
-	return publicAnalyticsPath(url) ?? (authenticationPaths.has(url.pathname) ? url.pathname : null);
+	return (
+		publicAnalyticsPath(url) ??
+		(authenticationPaths.has(url.pathname) || url.pathname === PORTRAIT_PACK_PATH
+			? url.pathname
+			: null)
+	);
 }
 
 export function isAuthenticationAnalyticsPath(path: string | null): boolean {

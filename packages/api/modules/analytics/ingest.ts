@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { auth } from "@repo/auth";
 import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
 import { growthExperimentVariant } from "@repo/config/growth-experiments";
+import { PORTRAIT_PACK_OBSERVED } from "@repo/config/portrait-packs";
 import { recordGrowthEvent } from "@repo/database";
 import {
 	firstTouchAttributionSchema,
@@ -14,7 +15,7 @@ import {
 	publicAnalyticsPath,
 	sanitizeGrowthAnalyticsPath,
 } from "@repo/utils/lib/analytics-page";
-import { resolveAnalyticsPolicy } from "@repo/utils/lib/analytics-policy";
+import { analyticsCookieValue, resolveAnalyticsPolicy } from "@repo/utils/lib/analytics-policy";
 import {
 	growthAnalyticsEventSchema,
 	containsSensitiveAnalyticsData,
@@ -65,6 +66,8 @@ export const ingestGrowthEvent = publicProcedure
 		if (
 			!resolveAnalyticsPolicy(context.headers).analyticsAllowed ||
 			!hasGrowthAnalyticsConsent(cookie) ||
+			(input.event.name === PORTRAIT_PACK_OBSERVED &&
+				analyticsCookieValue(cookie, "consent") !== "true") ||
 			!sessionHash
 		)
 			return { accepted: false };

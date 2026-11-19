@@ -8,6 +8,11 @@ import { conversionOutputSchema } from "./conversion-types";
 import { adminAnalyticsFunnelInputSchema, adminAnalyticsReportInputSchema } from "./types";
 
 describe("admin analytics operation contracts", () => {
+	it("preserves portrait pack CTA observations through the response schema", () => {
+		const row = { placement: "public-page", cta: "draw", exposed: 3, clicked: 2 };
+		expect(conversionOutputSchema.shape.portraitPacks.parse([row])).toEqual([row]);
+	});
+
 	it("preserves birthday artwork counts through the response schema", () => {
 		const row = {
 			idea: "birthday-card",

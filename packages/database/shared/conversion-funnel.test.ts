@@ -70,6 +70,52 @@ function job(id: string, status: string): ConversionJob {
 	};
 }
 describe("customer conversion cohort", () => {
+	it("counts only matching exposed browsers who click the same portrait pack CTA", () => {
+		const observe = (
+			session: string,
+			placement: string,
+			cta: string,
+			stage: string,
+			extra: Partial<ConversionEvent> = {},
+		): ConversionEvent => ({
+			...event("portrait_pack_observed", null, session),
+			diagnostics: { placement, cta, stage },
+			...extra,
+		});
+		const result = buildConversionFunnel(
+			facts(),
+			{
+				events: [
+					observe("one", "homepage", "invitation", "impression"),
+					observe("one", "homepage", "invitation", "impression"),
+					observe("one", "homepage", "invitation", "clicked"),
+					observe("one", "homepage", "invitation", "clicked"),
+					observe("two", "homepage", "invitation", "impression"),
+					observe("two", "homepage", "draw", "clicked"),
+					observe("three", "editor", "invitation", "clicked"),
+					observe("three", "editor", "invitation", "impression", { source: "other" }),
+					observe("four", "public-page", "draw", "impression"),
+					observe("four", "public-page", "draw", "clicked"),
+					observe("staff", "public-page", "draw", "impression", { userId: "admin" }),
+					observe("staff", "public-page", "draw", "clicked"),
+					observe("desktop", "public-page", "draw", "impression", { device: "desktop" }),
+					observe("past", "public-page", "draw", "impression", {
+						createdAt: new Date("2026-09-01T00:00:00Z"),
+					}),
+				],
+				jobs: [],
+			},
+			{ range: "7d", now, source: "chatgpt.com", device: "mobile" },
+		);
+		expect(result.portraitPacks).toEqual([
+			{ placement: "homepage", cta: "invitation", exposed: 2, clicked: 1 },
+			{ placement: "homepage", cta: "draw", exposed: 0, clicked: 0 },
+			{ placement: "editor", cta: "invitation", exposed: 0, clicked: 0 },
+			{ placement: "editor", cta: "draw", exposed: 0, clicked: 0 },
+			{ placement: "public-page", cta: "draw", exposed: 1, clicked: 1 },
+		]);
+	});
+
 	it("breaks down birthday clicks by displayed artwork while retaining legacy clicks in the total", () => {
 		const click = (session: string, variant?: string): ConversionEvent => ({
 			...event("homepage_idea_selected", null, session),

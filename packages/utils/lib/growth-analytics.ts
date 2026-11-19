@@ -9,6 +9,12 @@ import {
 	HOMEPAGE_IDEA_KEYS,
 	HOMEPAGE_IDEA_PLACEMENTS,
 } from "@repo/config/homepage-ideas";
+import {
+	PORTRAIT_PACK_CTAS,
+	PORTRAIT_PACK_OBSERVATION_STAGES,
+	PORTRAIT_PACK_OBSERVED,
+	PORTRAIT_PACK_PLACEMENTS,
+} from "@repo/config/portrait-packs";
 import { z } from "zod";
 
 import { sendFirstPartyGrowthEvent } from "./conversion-transport";
@@ -31,6 +37,7 @@ export {
 export const EZPIC_GROWTH_EVENT_NAMES = [
 	GENERATION_JOURNEY_OBSERVED,
 	"public_image_tool_observed",
+	PORTRAIT_PACK_OBSERVED,
 	"experiment_exposed",
 	"experiment_clicked",
 	"result_viewed",
@@ -179,6 +186,15 @@ export const growthAnalyticsPropertiesSchema = z
 		generation: generationDiagnosticsSchema.optional(),
 		journey: generationJourneyObservationSchema.optional(),
 		imageTool: publicImageToolObservationSchema.optional(),
+		portraitPack: z
+			.object({
+				placement: z.enum(PORTRAIT_PACK_PLACEMENTS),
+				cta: z.enum(PORTRAIT_PACK_CTAS),
+				stage: z.enum(PORTRAIT_PACK_OBSERVATION_STAGES),
+			})
+			.strict()
+			.refine(({ placement, cta }) => placement !== "public-page" || cta === "draw")
+			.optional(),
 		productKind: z.enum(["PLAN", "CREDIT_PACK", "IMAGE_PASS"]).optional(),
 		errorCategory: z
 			.enum(["unavailable", "conflict", "unauthorized", "network", "unknown"])
@@ -250,6 +266,11 @@ export const growthAnalyticsEventSchema = z
 		event.name === "public_image_tool_observed"
 			? Boolean(event.properties.imageTool) && !event.properties.generation
 			: !event.properties.imageTool,
+	)
+	.refine((event) =>
+		event.name === PORTRAIT_PACK_OBSERVED
+			? Boolean(event.properties.portraitPack) && !event.properties.generation
+			: !event.properties.portraitPack,
 	);
 
 export type GrowthAnalyticsEventName = z.infer<typeof growthAnalyticsEventNameSchema>;
