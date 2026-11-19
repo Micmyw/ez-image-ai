@@ -3,11 +3,14 @@ import { useTranslations } from "next-intl";
 
 import styles from "./portrait-pack.module.css";
 
-export function PackFoil({ tearing = false }: { tearing?: boolean }) {
+export function PackFoil() {
 	const t = useTranslations("portraitPacks");
 	return (
-		<span aria-hidden="true" className={styles.foil} data-tearing={tearing || undefined}>
+		<span aria-hidden="true" className={styles.foil}>
 			<span className={styles.seal} />
+			<span className={styles.tearOpening} />
+			<span className={styles.tearStrip} />
+			<span className={styles.tearTrail} />
 			<span className={styles.tearLine}>
 				{t("tearHere")} <MoveRightIcon size={16} />
 			</span>
