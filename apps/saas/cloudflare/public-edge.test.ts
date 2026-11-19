@@ -1,15 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-	homepageCachePolicy,
 	publicHealthResponse,
-	serveAnonymousHomepage as serveHomepage,
+	serveAnonymousDocument as serveDocument,
 	type EdgeCache,
 } from "./public-edge";
 import type { WorkerExecutionContext } from "./request-scope";
 
-const serveAnonymousHomepage: typeof serveHomepage = (request, execution, cache, render, options) =>
-	serveHomepage(request, execution, cache, render, { cacheVersion: "test-release", ...options });
+const serveAnonymousDocument: typeof serveDocument = (request, execution, cache, render, options) =>
+	serveDocument(request, execution, cache, render, { cacheVersion: "test-release", ...options });
 
 function memoryCache(): EdgeCache & { urls: () => string[] } {
 	const entries = new Map<string, Response>();
@@ -71,42 +70,51 @@ describe.sequential("public edge health and anonymous homepage", () => {
 		expect(publicHealthResponse(new Request("https://ezimageai.com/healthz"))).toBeNull();
 	});
 
-	it("caches an anonymous homepage and serves it without rendering again", async () => {
+	it("serves the cached anonymous homepage for 24 hours without scheduling another render", async () => {
 		const cache = memoryCache();
 		let renders = 0;
 		const render = async () => {
 			renders += 1;
 			return html(`<html>render-${renders}</html>`);
 		};
-		let now = 1_000_000;
+		const cachedAt = 1_000_000;
+		let now = cachedAt;
 		const ctx = context();
-		const first = await serveAnonymousHomepage(
+		const first = await serveAnonymousDocument(
 			new Request("https://ezimageai.com/"),
 			ctx.execution,
 			cache,
 			render,
-			{ clock: () => now },
+			{
+				clock: () => now,
+			},
 		);
 		expect(first.headers.get("x-edge-cache")).toBe("MISS");
 		expect(first.headers.get("cache-control")).toBe("private, no-store");
-		expect(first.headers.get("x-edge-cache-control")).toBe(
-			`public, s-maxage=${homepageCachePolicy.freshSeconds}, stale-while-revalidate=${homepageCachePolicy.staleWhileRevalidateSeconds}`,
-		);
 		expect(await first.text()).toContain("render-1");
 		await ctx.flush();
 
-		const second = await serveAnonymousHomepage(
-			new Request("https://ezimageai.com/?lang=en"),
-			ctx.execution,
-			cache,
-			render,
-			{ clock: () => now },
+		for (const age of [86, 43_200, 86_400]) {
+			now = cachedAt + age * 1000;
+			const next = context();
+			const response = await serveAnonymousDocument(
+				new Request("https://ezimageai.com/?lang=en"),
+				next.execution,
+				cache,
+				render,
+				{ clock: () => now },
+			);
+			expect(response.headers.get("x-edge-cache"), `age ${age}s`).toBe("HIT");
+			expect(response.headers.get("x-edge-cache-age")).toBe(String(age));
+			expect(await response.text()).toContain("render-1");
+			expect(await next.flush()).toHaveLength(0);
+			expect(renders).toBe(1);
+		}
+		expect(first.headers.get("x-edge-cache-control")).toBe(
+			"public, s-maxage=86400, stale-while-revalidate=3600",
 		);
-		expect(second.headers.get("x-edge-cache")).toBe("HIT");
-		expect(await second.text()).toContain("render-1");
-		expect(renders).toBe(1);
 
-		const head = await serveAnonymousHomepage(
+		const head = await serveAnonymousDocument(
 			new Request("https://ezimageai.com/", { method: "HEAD" }),
 			ctx.execution,
 			cache,
@@ -134,7 +142,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 		};
 		let now = 5_000_000;
 		const ctx = context();
-		await serveAnonymousHomepage(
+		await serveAnonymousDocument(
 			new Request("https://ezimageai.com/?lang=de"),
 			ctx.execution,
 			cache,
@@ -144,16 +152,18 @@ describe.sequential("public edge health and anonymous homepage", () => {
 			},
 		);
 		await ctx.flush();
-		now += 120_000;
+		now += (24 * 60 + 1) * 60_000;
 		const overlapping = [context(), context(), context()];
 		const stale = await Promise.all(
 			overlapping.map(({ execution }) =>
-				serveAnonymousHomepage(
+				serveAnonymousDocument(
 					new Request("https://ezimageai.com/?lang=de"),
 					execution,
 					cache,
 					render,
-					{ clock: () => now },
+					{
+						clock: () => now,
+					},
 				),
 			),
 		);
@@ -166,7 +176,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 		const registeredRefreshes = await Promise.all(overlapping.map((scope) => scope.flush()));
 		expect(registeredRefreshes.flat()).toHaveLength(1);
 		expect(renders).toBe(2);
-		const fresh = await serveAnonymousHomepage(
+		const fresh = await serveAnonymousDocument(
 			new Request("https://ezimageai.com/?lang=de"),
 			ctx.execution,
 			cache,
@@ -187,7 +197,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 		let now = 7_000_000;
 		const load = async () => {
 			const ctx = context();
-			const response = await serveAnonymousHomepage(
+			const response = await serveAnonymousDocument(
 				new Request("https://ezimageai.com/?lang=es"),
 				ctx.execution,
 				cache,
@@ -199,7 +209,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 			return { body, disposition: response.headers.get("x-edge-cache") };
 		};
 		await load();
-		now += 120_000;
+		now += (24 * 60 + 1) * 60_000;
 		expect(await load()).toEqual({ body: "<html>previous</html>", disposition: "STALE" });
 		expect(await load()).toEqual({ body: "<html>previous</html>", disposition: "STALE" });
 		expect(await load()).toEqual({ body: "<html>recovered</html>", disposition: "HIT" });
@@ -221,17 +231,19 @@ describe.sequential("public edge health and anonymous homepage", () => {
 			.mockResolvedValueOnce(html("<html>current</html>"));
 		let now = 8_000_000;
 		const get = (ctx: ReturnType<typeof context>) =>
-			serveAnonymousHomepage(
+			serveAnonymousDocument(
 				new Request("https://ezimageai.com/?lang=fr"),
 				ctx.execution,
 				cache,
 				render,
-				{ clock: () => now },
+				{
+					clock: () => now,
+				},
 			);
 		const initial = context();
 		await get(initial);
 		await initial.flush();
-		now += 120_000;
+		now += (24 * 60 + 1) * 60_000;
 		const forgotten = context();
 		expect((await get(forgotten)).headers.get("x-edge-cache")).toBe("STALE");
 
@@ -254,7 +266,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 		);
 		const load = async (cacheVersion?: string) => {
 			const ctx = context();
-			const response = await serveHomepage(
+			const response = await serveDocument(
 				new Request("https://ezimageai.com/"),
 				ctx.execution,
 				cache,
@@ -306,10 +318,10 @@ describe.sequential("public edge health and anonymous homepage", () => {
 			new Request("https://ezimageai.com/", { headers: { "next-router-state-tree": "[]" } }),
 			new Request("https://ezimageai.com/", { headers: { "next-router-prefetch": "1" } }),
 			new Request("https://ezimageai.com/?_rsc=prediction"),
-			new Request("https://ezimageai.com/create"),
+			new Request("https://ezimageai.com/examples"),
 		];
 		for (const request of requests) {
-			const response = await serveAnonymousHomepage(request, ctx.execution, cache, render);
+			const response = await serveAnonymousDocument(request, ctx.execution, cache, render);
 			expect(response.headers.get("x-edge-cache")).toBeNull();
 		}
 		await ctx.flush();
@@ -322,7 +334,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 		const render = async (request: Request) =>
 			html(`<html>${request.headers.get("cookie") ?? "none"}</html>`);
 		const ctx = context();
-		const accepted = await serveAnonymousHomepage(
+		const accepted = await serveAnonymousDocument(
 			new Request("https://ezimageai.com/", {
 				headers: { cookie: "consent=true; consent_version=2" },
 			}),
@@ -330,7 +342,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 			cache,
 			render,
 		);
-		const declined = await serveAnonymousHomepage(
+		const declined = await serveAnonymousDocument(
 			new Request("https://ezimageai.com/", { headers: { cookie: "consent=false" } }),
 			ctx.execution,
 			cache,
@@ -341,7 +353,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 		await ctx.flush();
 		expect(cache.urls()).toHaveLength(2);
 
-		const issued = await serveAnonymousHomepage(
+		const issued = await serveAnonymousDocument(
 			new Request("https://ezimageai.com/", { headers: { "x-test-set-cookie": "a=b" } }),
 			ctx.execution,
 			cache,
@@ -364,7 +376,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 			.mockResolvedValueOnce(html("<html>declined</html>"));
 		const get = async (cookie: string) => {
 			const ctx = context();
-			const response = await serveAnonymousHomepage(
+			const response = await serveAnonymousDocument(
 				new Request("https://ezimageai.com/", { headers: { cookie } }),
 				ctx.execution,
 				cache,
@@ -390,7 +402,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 			.mockResolvedValueOnce(html('<html><head><link rel="canonical" href="/"/></head></html>'));
 		const get = async (userAgent: string) => {
 			const ctx = context();
-			const response = await serveAnonymousHomepage(
+			const response = await serveAnonymousDocument(
 				new Request("https://ezimageai.com/", { headers: { "user-agent": userAgent } }),
 				ctx.execution,
 				cache,
@@ -414,7 +426,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 			.mockResolvedValueOnce(html("<html>reloaded</html>"));
 		const ctx = context();
 		const get = (headers?: HeadersInit) =>
-			serveAnonymousHomepage(
+			serveAnonymousDocument(
 				new Request("https://ezimageai.com/", { headers }),
 				ctx.execution,
 				cache,
@@ -435,7 +447,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 	it("propagates an anonymous homepage failure instead of serving the fallback", async () => {
 		const ctx = context();
 		await expect(
-			serveAnonymousHomepage(
+			serveAnonymousDocument(
 				new Request("https://ezimageai.com/"),
 				ctx.execution,
 				memoryCache(),
@@ -455,7 +467,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 				resolveRender = resolve;
 			});
 		const ctx = context();
-		const response = await serveAnonymousHomepage(
+		const response = await serveAnonymousDocument(
 			new Request("https://ezimageai.com/?lang=fr"),
 			ctx.execution,
 			cache,
@@ -473,7 +485,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 
 		resolveRender(html("<html>late-home</html>"));
 		await ctx.flush();
-		const hit = await serveAnonymousHomepage(
+		const hit = await serveAnonymousDocument(
 			new Request("https://ezimageai.com/?lang=fr"),
 			ctx.execution,
 			cache,
@@ -484,8 +496,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 		expect(await hit.text()).toContain("late-home");
 	});
 
-	it("serves a 50-minute-old anonymous copy immediately while refreshing it", async () => {
-		expect(homepageCachePolicy.staleWhileRevalidateSeconds).toBe(3_600);
+	it("renders a new homepage when the prior copy is more than 25 hours old", async () => {
 		const cache = memoryCache();
 		let renders = 0;
 		const render = async () => {
@@ -494,7 +505,7 @@ describe.sequential("public edge health and anonymous homepage", () => {
 		};
 		let now = 5_000_000;
 		const ctx = context();
-		await serveAnonymousHomepage(
+		await serveAnonymousDocument(
 			new Request("https://ezimageai.com/"),
 			ctx.execution,
 			cache,
@@ -504,18 +515,264 @@ describe.sequential("public edge health and anonymous homepage", () => {
 			},
 		);
 		await ctx.flush();
-		now += 50 * 60_000;
+		const [key] = cache.urls();
+		const stored = await cache.match(new Request(key!));
+		expect(stored?.headers.get("cache-control")).toBe("public, max-age=90000");
+
+		now += 25 * 60 * 60_000 + 1_000;
 		const later = context();
-		const stale = await serveAnonymousHomepage(
+		const fresh = await serveAnonymousDocument(
 			new Request("https://ezimageai.com/"),
 			later.execution,
 			cache,
 			render,
 			{ clock: () => now },
 		);
-		expect(stale.headers.get("x-edge-cache")).toBe("STALE");
-		expect(await stale.text()).toContain("render-1");
+		expect(fresh.headers.get("x-edge-cache")).toBe("MISS");
+		expect(await fresh.text()).toContain("render-2");
 		await later.flush();
 		expect(renders).toBe(2);
+	});
+});
+
+describe.sequential("anonymous document cache", () => {
+	it("isolates Create from the existing homepage key and reuses the same version for hours", async () => {
+		const cache = memoryCache();
+		const render = vi.fn(async (request: Request) => html(new URL(request.url).pathname));
+		let now = 5_000_000;
+		const load = async (path: string, cacheVersion = "test-release", method = "GET") => {
+			const ctx = context();
+			const response = await serveAnonymousDocument(
+				new Request(`https://ezimageai.com${path}`, { method }),
+				ctx.execution,
+				cache,
+				render,
+				{ cacheVersion, clock: () => now },
+			);
+			const body = await response.text();
+			const pending = await ctx.flush();
+			return { body, headers: response.headers, pending };
+		};
+		await cache.put(
+			new Request(
+				"https://homepage-cache.internal/?version=test-release&origin=https%3A%2F%2Fezimageai.com&lang=en&consent=undecided&bot=browser",
+			),
+			html("homepage", { "x-edge-cached-at": String(now) }),
+		);
+		const home = await load("/");
+		expect(home.headers.get("x-edge-cache")).toBe("HIT");
+		expect(home.body).toBe("homepage");
+		const create = await load("/create", "test-release", "HEAD");
+		expect(create.headers.get("x-edge-cache")).toBe("MISS");
+		expect(create.headers.get("cache-control")).toBe("private, no-store");
+		expect(create.headers.get("cdn-cache-control")).toBe("no-store");
+		expect(create.headers.get("x-edge-cache-control")).toContain("s-maxage=86400");
+		expect(create.body).toBe("");
+		expect(render.mock.calls[0]?.[0].method).toBe("GET");
+
+		now += 12 * 60 * 60_000;
+		const warm = await load("/create");
+		expect(warm.headers.get("x-edge-cache")).toBe("HIT");
+		expect(warm.headers.get("x-edge-cache-age")).toBe("43200");
+		expect(warm.body).toBe("/create");
+		expect(warm.pending).toHaveLength(0);
+		expect(render).toHaveBeenCalledOnce();
+
+		const nextRelease = await load("/create", "next-release");
+		expect(nextRelease.headers.get("x-edge-cache")).toBe("MISS");
+		expect(cache.urls()).toHaveLength(3);
+		expect((await load("/create")).headers.get("x-edge-cache")).toBe("HIT");
+
+		now += (12 * 60 + 1) * 60_000;
+		const stale = await load("/create");
+		expect(stale.headers.get("x-edge-cache")).toBe("STALE");
+		expect(stale.pending).toHaveLength(1);
+		expect(render).toHaveBeenCalledTimes(3);
+	});
+
+	it.each(["/", "/create"])(
+		"passes private and non-document requests through untouched on %s",
+		async (path) => {
+			const cache = memoryCache();
+			const load = (request: Request, render: (request: Request) => Promise<Response>) =>
+				serveAnonymousDocument(request, context().execution, cache, render);
+			const url = `https://ezimageai.com${path}`;
+			const publicDocument = new Request(url);
+			const warmup = context();
+			await serveAnonymousDocument(publicDocument, warmup.execution, cache, async () =>
+				html("public document"),
+			);
+			await warmup.flush();
+
+			const queries = [
+				"?job=private",
+				"?videoJob=private",
+				"?guestAsset=private",
+				"?authDraft=private",
+				"?mode=video",
+				"?resume",
+				"?utm_source=campaign",
+				"?lang=de&lang=es",
+				"?lang=unknown",
+				"?_rsc=app-router",
+			];
+			const requestHeaders: HeadersInit[] = [
+				{ cookie: "NEXT_LOCALE=fr; better-auth.session_token=account" },
+				{ cookie: "__Secure-better-auth.session_token=guest-session" },
+				{ cookie: "__Secure-better-auth.session_data.0=legacy" },
+				{ cookie: "__Host-ezpic_guest=recognized-browser" },
+				{ cookie: "__prerender_bypass=preview" },
+				{ authorization: "Bearer example" },
+				{ range: "bytes=0-100" },
+				{ "if-none-match": '"etag"' },
+				{ rsc: "1" },
+				{ "next-router-state-tree": "[]" },
+				{ "next-router-prefetch": "1" },
+				{ "next-router-segment-prefetch": "/_tree" },
+				{ "next-url": path },
+				{ purpose: "prefetch" },
+				{ "sec-purpose": "prefetch;prerender" },
+				{ "sec-fetch-mode": "cors", "sec-fetch-dest": "empty" },
+				{ "x-matched-path": "/examples" },
+				{ "x-middleware-set-cookie": "consent=false" },
+				{ "x-opennext-initial-url": "/examples" },
+				{ "content-security-policy": "script-src 'self'" },
+				{ accept: "text/x-component, */*" },
+				{ accept: "application/json" },
+			];
+			const requests = [
+				new Request(url, { method: "POST" }),
+				new Request(`${url}/`),
+				new Request(`${url}.rsc`),
+				...queries.map((query) => new Request(url + query)),
+				...requestHeaders.map((headers) => new Request(url, { headers })),
+			];
+			const render = vi.fn(async (_request: Request) => html("origin"));
+			for (const [index, request] of requests.entries()) {
+				const bypassed = await load(request, render);
+				expect(
+					bypassed.headers.get("x-edge-cache"),
+					`${request.method} ${request.url} (${[...request.headers.keys()].join(", ")})`,
+				).toBeNull();
+				expect(render.mock.calls[index]?.[0]).toBe(request);
+				expect(await bypassed.text()).toBe("origin");
+			}
+			expect(cache.urls()).toHaveLength(1);
+			const ordinary = await load(
+				new Request(url, {
+					headers: { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" },
+				}),
+				render,
+			);
+			expect(ordinary.headers.get("x-edge-cache")).toBe("HIT");
+			expect(await ordinary.text()).toBe("public document");
+			expect(render).toHaveBeenCalledTimes(requests.length);
+		},
+	);
+
+	it.each(["/", "/create"])(
+		"accepts regular Next HTML and partitions cache variants on %s",
+		async (path) => {
+			const cache = memoryCache();
+			const render = vi.fn(async () =>
+				html("<html>anonymous document</html>", {
+					"cache-control": "private, no-cache, no-store, max-age=0, must-revalidate",
+					vary: "RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Router-Segment-Prefetch, Accept-Encoding",
+				}),
+			);
+			const url = `https://ezimageai.com${path}`;
+			const browsers = [
+				new Request(`${url}?lang=fr`),
+				new Request(`${url}?lang=de`),
+				new Request(`${url}?lang=fr`, {
+					headers: { cookie: "consent=true; consent_version=2; NEXT_LOCALE=es" },
+				}),
+				new Request(`${url}?lang=fr`, { headers: { cookie: "consent=false" } }),
+				new Request(`${url}?lang=fr`, { headers: { "user-agent": "Googlebot/2.1" } }),
+				new Request(`${url}?lang=fr`, { headers: { "user-agent": "bingbot/2.0" } }),
+				new Request(`https://preview.example${path}?lang=fr`),
+			];
+			const load = async (request: Request) => {
+				const ctx = context();
+				const response = await serveAnonymousDocument(request, ctx.execution, cache, render);
+				await response.text();
+				await ctx.flush();
+				return response.headers.get("x-edge-cache");
+			};
+			for (const request of browsers) expect(await load(request)).toBe("MISS");
+			for (const request of browsers) expect(await load(request)).toBe("HIT");
+			expect(render).toHaveBeenCalledTimes(browsers.length);
+			expect(cache.urls()).toHaveLength(browsers.length);
+		},
+	);
+
+	it.each(["/", "/create"])(
+		"preserves unexpected responses without caching them on %s",
+		async (path) => {
+			const cache = memoryCache();
+			const ctx = context();
+			const load = (render: () => Promise<Response>, init?: RequestInit) =>
+				serveAnonymousDocument(
+					new Request(`https://ezimageai.com${path}`, init),
+					ctx.execution,
+					cache,
+					render,
+				);
+			await load(async () => html("public document"));
+			await ctx.flush();
+
+			const unexpected: Record<string, string>[] = [
+				{ "set-cookie": "cookie-issued=value" },
+				{ "cache-control": "private, no-store" },
+				{ "cdn-cache-control": "no-store" },
+				{ "cloudflare-cdn-cache-control": "no-store" },
+				{ "content-type": "text/x-component" },
+				{ "x-robots-tag": "noindex, nofollow" },
+				{ vary: "Cookie" },
+				{ vary: "*" },
+			];
+			for (const extra of unexpected) {
+				const reload = await load(async () => html("unexpected", extra), {
+					headers: { "cache-control": "no-cache" },
+				});
+				expect(reload.headers.get("x-edge-cache")).toBeNull();
+				expect(await reload.text()).toBe("unexpected");
+			}
+			const head = await load(async () => html("no HEAD body", unexpected[0]), {
+				method: "HEAD",
+				headers: { "cache-control": "no-cache" },
+			});
+			expect(head.headers.get("set-cookie")).toBe("cookie-issued=value");
+			expect(head.headers.get("x-edge-cache")).toBeNull();
+			expect(await head.text()).toBe("");
+			await ctx.flush();
+			const hit = await load(async () => html("rerender"));
+			expect(hit.headers.get("x-edge-cache")).toBe("HIT");
+			expect(await hit.text()).toBe("public document");
+			expect(cache.urls()).toHaveLength(1);
+		},
+	);
+
+	it("makes a timed-out Create document retry the same localized route", async () => {
+		const cache = memoryCache();
+		const ctx = context();
+		let resolveRender!: (response: Response) => void;
+		const render = () =>
+			new Promise<Response>((resolve) => {
+				resolveRender = resolve;
+			});
+		const request = new Request("https://ezimageai.com/create?lang=de");
+		const timeout = await serveAnonymousDocument(request, ctx.execution, cache, render, {
+			timeoutMs: 1,
+		});
+		expect(timeout.headers.get("x-edge-cache")).toBe("DEGRADED");
+		expect(timeout.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+		const body = await timeout.text();
+		expect(body).toContain('<html lang="de">');
+		expect(body).toContain('href="/create?lang=de">Erneut versuchen</a>');
+		expect(body).toContain('href="/?lang=de">Editor öffnen</a>');
+		resolveRender(html("private result", { "set-cookie": "cookie-issued=value" }));
+		await ctx.flush();
+		expect(cache.urls()).toHaveLength(0);
 	});
 });

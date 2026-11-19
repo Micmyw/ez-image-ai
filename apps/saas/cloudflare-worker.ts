@@ -33,7 +33,7 @@ import { createImageCallbackIngress } from "./cloudflare/image-callback";
 import {
 	publicHealthResponse,
 	readDefaultCache,
-	serveAnonymousHomepage,
+	serveAnonymousDocument,
 } from "./cloudflare/public-edge";
 import { servePublicMetadata, type PublicMetadataAssets } from "./cloudflare/public-metadata";
 import { runScopedWorkerRequest, type WorkerExecutionContext } from "./cloudflare/request-scope";
@@ -157,7 +157,7 @@ export default {
 								),
 						);
 					};
-					return serveAnonymousHomepage(
+					return serveAnonymousDocument(
 						forwardedRequest,
 						executionContext,
 						readDefaultCache(),

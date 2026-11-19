@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
+import { get as httpGet } from "node:http";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { text as readBodyText } from "node:stream/consumers";
+import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 
@@ -141,6 +144,113 @@ async function request(endpoint, { status = 200, ...options } = {}) {
 	const body = await response.text();
 	assert.equal(response.status, status, `${endpoint}: ${body.slice(0, 300)}`);
 	return { response, body };
+}
+
+async function requestDocument(endpoint, { headers, method = "GET" } = {}) {
+	const url = new URL(endpoint, await runtime.ready);
+	const canonical = new URL(endpoint, origin);
+	// Miniflare dispatchFetch uses Undici, which replaces Sec-Fetch-Mode with cors.
+	const message = await new Promise((resolve, reject) => {
+		httpGet(
+			url,
+			{
+				method,
+				headers: {
+					accept: "text/html",
+					"sec-fetch-mode": "navigate",
+					"sec-fetch-dest": "document",
+					...headers,
+					host: canonical.host,
+					"MF-Original-URL": canonical.href,
+				},
+				signal: AbortSignal.timeout(30_000),
+			},
+			resolve,
+		).once("error", reject);
+	});
+	const body = await readBodyText(message);
+	assert.equal(message.statusCode, 200, `${endpoint}: ${body.slice(0, 300)}`);
+	return { response: { headers: new Headers(message.headers) }, body };
+}
+
+async function requestWithEdgeCacheHit(endpoint, headers) {
+	let page = await requestDocument(endpoint, { headers });
+	// Consuming the response body can finish before the waitUntil cache write.
+	for (const milliseconds of [25, 50, 100, 200]) {
+		if (page.response.headers.get("x-edge-cache") !== "MISS") break;
+		await delay(milliseconds);
+		page = await requestDocument(endpoint, { headers });
+	}
+	assert.equal(page.response.headers.get("x-edge-cache"), "HIT", endpoint);
+	return page;
+}
+
+async function verifyAnonymousDocumentCache(headers) {
+	const home = await requestWithEdgeCacheHit("/", headers);
+	const cold = await requestDocument("/create", { headers });
+	assert.equal(cold.response.headers.get("x-edge-cache"), "MISS", "/create cold document");
+	const warm = await requestWithEdgeCacheHit("/create", headers);
+	assert(warm.body === cold.body, "Cached /create must return the original document");
+	const head = await requestDocument("/create", { headers, method: "HEAD" });
+	assert.equal(head.response.headers.get("x-edge-cache"), "HIT", "/create HEAD");
+	assert.equal(head.body, "", "/create HEAD");
+	for (const { response } of [home, cold, warm, head]) {
+		assert.match(response.headers.get("content-type") ?? "", /text\/html/);
+		assert.equal(response.headers.get("cache-control"), "private, no-store");
+		assert.equal(response.headers.get("cdn-cache-control"), "no-store");
+		assert.equal(
+			response.headers.get("x-edge-cache-control"),
+			"public, s-maxage=86400, stale-while-revalidate=3600",
+		);
+		assert.equal(response.headers.get("set-cookie"), null);
+		assert.equal(response.headers.get("x-robots-tag"), null);
+	}
+	for (const [endpoint, page] of Object.entries({ "/": home, "/create": warm })) {
+		const canonical = page.body.match(
+			/<link\b(?=[^>]*\brel="canonical")[^>]*\bhref="([^"]+)"/,
+		)?.[1];
+		assert(canonical, `${endpoint}: expected a canonical URL`);
+		const { pathname, search } = new URL(canonical);
+		assert.equal(pathname + search, endpoint, `${endpoint}: canonical path`);
+		assert.match(page.body, /<section\b[^>]*\bid="image-editor"/, endpoint);
+	}
+	const homeSection = /<section\b[^>]*\bid="quick-start"/;
+	assert.match(home.body, homeSection);
+	assert.doesNotMatch(warm.body, homeSection);
+
+	const homeTask = await requestDocument("/?job=artifact-private-image", { headers });
+	assert.equal(homeTask.response.headers.get("x-robots-tag"), "noindex, nofollow");
+	const task = await requestDocument("/create?videoJob=artifact-private-job", { headers });
+	assert.equal(task.response.headers.get("x-robots-tag"), "noindex, nofollow");
+	assert.match(
+		task.body,
+		/<meta\b(?=[^>]*\bname="robots")(?=[^>]*\bcontent="noindex,\s*nofollow")[^>]*>/,
+	);
+	// An invalid signature exercises the session-cookie bypass without a database session.
+	const sessionCookie = await requestDocument("/create", {
+		headers: {
+			...headers,
+			cookie: `${headers.cookie}; __Secure-better-auth.session_token=artifact-invalid-session`,
+		},
+	});
+	const programmatic = await requestDocument("/create", {
+		headers: { ...headers, "sec-fetch-mode": "cors", "sec-fetch-dest": "empty" },
+	});
+	for (const [label, { response }] of Object.entries({
+		"homepage private job": homeTask,
+		"/create private job": task,
+		"/create session cookie": sessionCookie,
+		"/create programmatic request": programmatic,
+	})) {
+		assert.equal(response.headers.get("x-edge-cache"), null, label);
+		assert.match(response.headers.get("cache-control") ?? "", /private.*no-store/, label);
+	}
+	const afterBypasses = await requestDocument("/create", { headers });
+	assert.equal(afterBypasses.response.headers.get("x-edge-cache"), "HIT");
+	assert(
+		afterBypasses.body === warm.body,
+		"Private requests must preserve the cached public document",
+	);
 }
 
 function assertDirectDataSecurity(response, endpoint) {
@@ -361,8 +471,8 @@ try {
 		request("/health", { headers: publicHeaders }),
 		request("/login"),
 		request(`/_next/static/${staticFile.replaceAll(path.sep, "/")}`),
-		request("/", { headers: publicHeaders }),
-		request("/create?lang=es", { headers: publicHeaders }),
+		requestDocument("/", { headers: publicHeaders }),
+		requestDocument("/create?lang=es", { headers: publicHeaders }),
 		request("/video", { status: 307 }),
 	]);
 	assert.deepEqual(JSON.parse(health.body), { status: "alive" });
@@ -376,6 +486,7 @@ try {
 	assert.equal(home.response.headers.get("cache-control"), "private, no-store");
 	assert.match(login.response.headers.get("content-type"), /text\/html/);
 	assert.match(login.response.headers.get("cache-control"), /private.*no-store/);
+	assert.equal(login.response.headers.get("x-edge-cache"), null, "/login");
 	assert.match(asset.response.headers.get("cache-control"), /immutable/);
 	// Unlike /login and /api/health, these paths exercise OpenNext's compiled
 	// Node proxy adapter and its request-header forwarding into next-intl.
@@ -391,6 +502,7 @@ try {
 			`${endpoint}: public indexing metadata`,
 		);
 	}
+	await verifyAnonymousDocumentCache(publicHeaders);
 	// Inspect the original response: following redirects could hide a lost auth
 	// boundary or the private route's proxy headers behind a successful login page.
 	const videoLocation = video.response.headers.get("location");
@@ -497,6 +609,7 @@ try {
 			dynamicLoginPage: true,
 			publicProxyLocales: true,
 			publicIndexingHeaders: true,
+			anonymousCreateEdgeCache: true,
 			anonymousVideoLoginRedirect: true,
 			privateVideoNoindex: true,
 			externalHttpRequests: blockedOutboundOrigins.length,

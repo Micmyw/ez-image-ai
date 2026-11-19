@@ -5,21 +5,41 @@ import { getBotType } from "next/dist/shared/lib/router/utils/is-bot";
 
 import type { WorkerExecutionContext } from "./request-scope";
 
-/**
- * Anonymous homepage entries stay fresh for one minute, then refresh in the
- * background. A one-hour stale window keeps low-traffic colos from falling back
- * to a cold 1.3-2.4 s SSR render after five idle minutes (measured 2026-11-04).
- */
-export const homepageCachePolicy = {
-	freshSeconds: 60,
+// Both anonymous documents are scoped to a deployment. Allow one hour for background refresh.
+const documentCachePolicy = {
+	freshSeconds: 86_400,
 	staleWhileRevalidateSeconds: 3_600,
 	ssrTimeoutMs: 8_000,
 	maxCachedBytes: 2_000_000,
 } as const;
+const retainSeconds =
+	documentCachePolicy.freshSeconds + documentCachePolicy.staleWhileRevalidateSeconds;
+type DocumentPath = "/" | "/create";
 
-const freshMs = homepageCachePolicy.freshSeconds * 1000;
-const retainMs =
-	(homepageCachePolicy.freshSeconds + homepageCachePolicy.staleWhileRevalidateSeconds) * 1000;
+const navigationHeaders = [
+	"rsc",
+	"next-router-state-tree",
+	"next-router-prefetch",
+	"next-router-segment-prefetch",
+	"next-url",
+];
+const documentBypassHeaders = [
+	"if-match",
+	"if-modified-since",
+	"if-none-match",
+	"if-range",
+	"if-unmodified-since",
+	"content-security-policy",
+	"content-security-policy-report-only",
+	"x-matched-path",
+	"x-now-route-matches",
+];
+const documentInternalHeader =
+	/^(?:next-|x-next-|x-nextjs-|x-middleware-|x-opennext-|x-prerender-|x-invoke-)/;
+const privateDocumentCookie =
+	/(?:^|;)\s*(?:(?:__Secure-|__Host-)?better-auth\.[^=;]+|(?:__Host-)?ezpic_guest|__prerender_bypass|__next_preview_data|next-instant-navigation-testing)\s*(?:=|;|$)/;
+const documentVaryHeaders = new Set([...navigationHeaders, "accept-encoding"]);
+const nextDynamicCacheControl = "private, no-cache, no-store, max-age=0, must-revalidate";
 const versionId = /^[\w-]{1,128}$/;
 const refreshLimitMs = 30_000;
 // Only deadlines cross request boundaries. Responses and refresh I/O stay in the owning request.
@@ -38,7 +58,7 @@ export interface EdgeCache {
 	put(request: Request, response: Response): Promise<void>;
 }
 
-export interface HomepageEdgeOptions {
+export interface AnonymousDocumentEdgeOptions {
 	cacheVersion?: string;
 	clock?: () => number;
 	timeoutMs?: number;
@@ -89,27 +109,29 @@ export function publicHealthResponse(request: Request): Response | null {
 	return new Response(request.method === "HEAD" ? null : body, { status: 200, headers });
 }
 
-export async function serveAnonymousHomepage(
+export async function serveAnonymousDocument(
 	request: Request,
 	executionContext: WorkerExecutionContext,
 	cache: EdgeCache | null,
 	render: (request: Request) => Promise<Response>,
-	options: HomepageEdgeOptions = {},
+	options: AnonymousDocumentEdgeOptions = {},
 ): Promise<Response> {
-	const variant = anonymousHomepageVariant(request);
+	const variant = anonymousDocumentVariant(request);
 	if (!variant) return render(request);
 
+	const retainMs = retainSeconds * 1000;
 	const clock = options.clock ?? Date.now;
-	const timeoutMs = options.timeoutMs ?? homepageCachePolicy.ssrTimeoutMs;
+	const timeoutMs = options.timeoutMs ?? documentCachePolicy.ssrTimeoutMs;
 	const cacheVersion = options.cacheVersion;
 	const cacheKey =
 		cache && cacheVersion && versionId.test(cacheVersion)
-			? homepageCacheRequest(variant, cacheVersion)
+			? documentCacheRequest(variant, cacheVersion)
 			: null;
 	const cached = cache && cacheKey ? await matchCache(cache, cacheKey) : undefined;
 	const age = cached ? cachedAgeMs(cached, clock()) : null;
 	if (cached && cache && cacheKey && age !== null && age <= retainMs && !bypassCacheRead(request)) {
-		if (age <= freshMs) return present(cached, "HIT", age, request.method);
+		if (age <= documentCachePolicy.freshSeconds * 1000)
+			return present(cached, "HIT", age, request.method);
 		refresh(render, request, executionContext, cache, cacheKey, clock);
 		return present(cached, "STALE", age, request.method);
 	}
@@ -129,7 +151,7 @@ export async function serveAnonymousHomepage(
 			pending
 				.then(async (result) => {
 					if (!result.ok) return;
-					if (cache && cacheKey && cacheableHomepage(result.response)) {
+					if (cache && cacheKey && cacheableDocument(result.response)) {
 						await store(cache, cacheKey, result.response, clock);
 					} else {
 						await result.response.body?.cancel();
@@ -139,16 +161,17 @@ export async function serveAnonymousHomepage(
 		);
 		if (cached && age !== null && age <= retainMs)
 			return present(cached, "STALE", age, request.method);
-		return degradedHomepage(variant.lang, request.method);
+		return degradedDocument(variant.path, variant.lang, request.method);
 	}
 	if (!outcome.ok) throw outcome.error;
-	if (!cacheableHomepage(outcome.response)) return outcome.response;
+	if (!cacheableDocument(outcome.response))
+		return documentResponse(outcome.response, request.method);
 	if (cache && cacheKey) {
 		try {
 			const copy = outcome.response.clone();
 			executionContext.waitUntil(store(cache, cacheKey, copy, clock).catch(() => undefined));
 		} catch {
-			return outcome.response;
+			return documentResponse(outcome.response, request.method);
 		}
 	}
 	return present(outcome.response, "MISS", 0, request.method);
@@ -174,13 +197,13 @@ function refresh(
 			const documentRequest =
 				request.method === "HEAD" ? new Request(request, { method: "GET" }) : request;
 			const response = await render(documentRequest);
-			if (ownsRefresh() && cacheableHomepage(response)) {
+			if (ownsRefresh() && cacheableDocument(response)) {
 				await store(cache, cacheKey, response, clock, ownsRefresh);
 			} else {
 				await response.body?.cancel();
 			}
 		} catch {
-			// Keep the previous homepage until another request can refresh it.
+			// Keep the previous document until another request can refresh it.
 		} finally {
 			if (activeRefreshes.get(key) === deadline) activeRefreshes.delete(key);
 		}
@@ -188,17 +211,14 @@ function refresh(
 	executionContext.waitUntil(update());
 }
 
-function anonymousHomepageVariant(request: Request) {
+function anonymousDocumentVariant(request: Request) {
 	if (request.method !== "GET" && request.method !== "HEAD") return null;
 	const url = new URL(request.url);
-	if (normalizePath(url.pathname) !== "/") return null;
+	const path = url.pathname;
+	if (path !== "/" && path !== "/create") return null;
 	if (request.headers.has("authorization") || request.headers.has("range")) return null;
 	if (
-		request.headers.has("rsc") ||
-		request.headers.has("next-router-state-tree") ||
-		request.headers.has("next-router-prefetch") ||
-		request.headers.has("next-router-segment-prefetch") ||
-		request.headers.has("next-url") ||
+		navigationHeaders.some((header) => request.headers.has(header)) ||
 		url.searchParams.has("_rsc")
 	)
 		return null;
@@ -211,7 +231,7 @@ function anonymousHomepageVariant(request: Request) {
 	)
 		return null;
 	const cookie = request.headers.get("cookie") ?? "";
-	if (hasSessionCookie(cookie)) return null;
+	if (bypassDocumentCache(request, cookie, accept)) return null;
 	const keys = [...new Set(url.searchParams.keys())];
 	if (keys.some((key) => key !== "lang")) return null;
 	const langValues = url.searchParams.getAll("lang");
@@ -219,25 +239,43 @@ function anonymousHomepageVariant(request: Request) {
 	const requested = langValues[0] ?? "en";
 	if (!isLocale(requested)) return null;
 	return {
+		path,
 		origin: url.origin,
 		lang: requested,
 		consent: consentVariant(cookie),
 		// Next.js serves blocking metadata to HTML-limited crawlers.
 		bot: getBotType(request.headers.get("user-agent") ?? "") ?? "browser",
-	};
+	} as const;
 }
 
-function homepageCacheRequest(
-	variant: NonNullable<ReturnType<typeof anonymousHomepageVariant>>,
+function documentCacheRequest(
+	variant: NonNullable<ReturnType<typeof anonymousDocumentVariant>>,
 	version: string,
 ) {
 	const url = new URL("https://homepage-cache.internal/");
+	// Preserve already-populated homepage keys and use a distinct pathname for Create.
+	url.pathname = variant.path;
 	url.searchParams.set("version", version);
 	url.searchParams.set("origin", variant.origin);
 	url.searchParams.set("lang", variant.lang);
 	url.searchParams.set("consent", variant.consent);
 	url.searchParams.set("bot", variant.bot);
 	return new Request(url, { method: "GET" });
+}
+
+function bypassDocumentCache(request: Request, cookie: string, accept: string | null) {
+	const { headers } = request;
+	if (privateDocumentCookie.test(cookie) || accept?.includes("text/x-component")) return true;
+	if (documentBypassHeaders.some((header) => headers.has(header))) return true;
+	for (const name of headers.keys()) if (documentInternalHeader.test(name)) return true;
+	const mode = headers.get("sec-fetch-mode");
+	const destination = headers.get("sec-fetch-dest");
+	const purpose = `${headers.get("purpose") ?? ""},${headers.get("sec-purpose") ?? ""}`;
+	return (
+		Boolean(mode && mode !== "navigate") ||
+		Boolean(destination && destination !== "document") ||
+		/\b(?:prefetch|prerender)\b/i.test(purpose)
+	);
 }
 
 function bypassCacheRead(request: Request) {
@@ -262,11 +300,38 @@ function consentVariant(cookie: string) {
 	return "undecided";
 }
 
-function cacheableHomepage(response: Response) {
+function cacheableDocument(response: Response) {
+	const { headers } = response;
+	if (
+		response.status !== 200 ||
+		!(headers.get("content-type") ?? "").includes("text/html") ||
+		headers.has("set-cookie")
+	)
+		return false;
+	// Next marks dynamic HTML private by default, including the identified anonymous shell.
+	// Explicit CDN policy or additional request variance can describe a different representation.
+	const cacheControl = headers.get("cache-control")?.trim().toLowerCase() ?? "";
+	if (
+		cacheControl !== nextDynamicCacheControl &&
+		/(?:^|,)\s*(?:private|no-cache|no-store)\b/i.test(cacheControl)
+	)
+		return false;
+	if (
+		headers.has("cdn-cache-control") ||
+		headers.has("cloudflare-cdn-cache-control") ||
+		headers.has("content-range") ||
+		headers.has("location") ||
+		headers.has("x-nextjs-postponed") ||
+		headers.has("x-nextjs-rewritten-path") ||
+		headers.has("x-nextjs-rewritten-query") ||
+		headers.has("x-robots-tag")
+	)
+		return false;
+	const encoding = headers.get("content-encoding");
+	if (encoding && encoding !== "identity") return false;
+	const vary = headers.get("vary");
 	return (
-		response.status === 200 &&
-		(response.headers.get("content-type") ?? "").includes("text/html") &&
-		!response.headers.has("set-cookie")
+		!vary || vary.split(",").every((name) => documentVaryHeaders.has(name.trim().toLowerCase()))
 	);
 }
 
@@ -289,13 +354,10 @@ async function store(
 	ownsRefresh?: () => boolean,
 ) {
 	const body = await response.arrayBuffer();
-	if (body.byteLength === 0 || body.byteLength > homepageCachePolicy.maxCachedBytes) return;
+	if (body.byteLength === 0 || body.byteLength > documentCachePolicy.maxCachedBytes) return;
 	if (ownsRefresh && !ownsRefresh()) return;
 	const headers = new Headers(response.headers);
-	headers.set(
-		"cache-control",
-		`public, max-age=${homepageCachePolicy.freshSeconds + homepageCachePolicy.staleWhileRevalidateSeconds}`,
-	);
+	headers.set("cache-control", `public, max-age=${retainSeconds}`);
 	headers.set("x-edge-cached-at", String(clock()));
 	headers.delete("cdn-cache-control");
 	headers.delete("cloudflare-cdn-cache-control");
@@ -327,21 +389,26 @@ function present(
 	headers.set("x-edge-cache-age", String(Math.floor(ageMs / 1000)));
 	headers.set(
 		"x-edge-cache-control",
-		`public, s-maxage=${homepageCachePolicy.freshSeconds}, stale-while-revalidate=${homepageCachePolicy.staleWhileRevalidateSeconds}`,
+		`public, s-maxage=${documentCachePolicy.freshSeconds}, stale-while-revalidate=${documentCachePolicy.staleWhileRevalidateSeconds}`,
 	);
 	headers.delete("x-edge-cached-at");
 	headers.delete("set-cookie");
-	if (method === "HEAD") {
-		void source.body?.cancel();
-		return new Response(null, { status: source.status, headers });
-	}
-	return new Response(source.body, { status: source.status, headers });
+	return documentResponse(source, method, headers);
 }
 
-function degradedHomepage(lang: Locale, method: string) {
+function documentResponse(source: Response, method: string, headers?: Headers) {
+	if (method === "HEAD") {
+		void source.body?.cancel().catch(() => undefined);
+		return new Response(null, { status: source.status, headers: headers ?? source.headers });
+	}
+	return headers ? new Response(source.body, { status: source.status, headers }) : source;
+}
+
+function degradedDocument(path: DocumentPath, lang: Locale, method: string) {
 	const copy = fallbackCopy[lang];
 	const query = lang === "en" ? "" : `?lang=${lang}`;
-	const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>EzImageAI</title></head><body><main><h1>EzImageAI</h1><p>${copy.body}</p><p><a href="/${query}">${copy.retry}</a> · <a href="/create${query}">${copy.create}</a></p></main></body></html>`;
+	const alternateEditor = path === "/" ? "/create" : "/";
+	const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>EzImageAI</title></head><body><main><h1>EzImageAI</h1><p>${copy.body}</p><p><a href="${path}${query}">${copy.retry}</a> · <a href="${alternateEditor}${query}">${copy.create}</a></p></main></body></html>`;
 	const headers = new Headers({
 		"cache-control": "private, no-store",
 		"cdn-cache-control": "no-store",

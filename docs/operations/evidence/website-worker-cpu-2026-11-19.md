@@ -57,3 +57,26 @@ For a release, update the Jobs maintenance receiver before the website writer to
 retention active. No schema migration is required. Compare the new website version's total CPU
 divided by its HTTP invocation count over comparable 24-hour and seven-day windows. Also track total
 CPU, homepage renders, Create, request mix and errors. This review performed no production release.
+
+## Anonymous Create follow-up · local workerd
+
+The deployed source revision `ed3a4721` and the candidate used the same Linux OpenNext application build.
+Each website entry point was packed separately and run in a fresh local workerd process. Eight anonymous document
+GETs warmed the process. Three batches of 25 GETs then read the complete `/create` response over loopback HTTP.
+Workerd user and system CPU ticks gave **22.0 ms/request** on the previous route and **1.33 ms/request** on the
+candidate's cache hits. Every measured request checked HTTP 200, the expected cache disposition and a delivered HTML
+body over 150 KB. The candidate artifact SHA-256 was `f1df86c8cfd5723515c275f1f0e3de4f96a1822d4be4b7003de783c02e4cee11`.
+
+The packed candidate also passed the website workerd smoke checks for cache hits, private navigation and route-specific
+canonical URLs. Production hit rate, cold requests and site-wide CPU require measurement after release.
+
+## Anonymous homepage follow-up
+
+The deployed 60-second policy at Tokyo (NRT) served an 86-second-old document as `STALE`. Cloudflare recorded
+1,558 ms of CPU for that invocation, including background work. Three fresh hits used 4, 1 and 1 ms.
+
+With the 24-hour policy, local workerd served the same anonymous homepage as a `HIT` at a reported age of
+89 seconds. After eight warm-up hits, three batches of 25 complete document GETs used 1.2, 1.6 and 1.2 ms of
+workerd process CPU per request (1.33 ms overall). The candidate artifact SHA-256 was
+`a051714283673740e385eb062f04033c5965dd7ddd4830450598f7f416b1fe7f`. Simulated-clock tests also checked
+that requests at 12 and 24 hours scheduled no background render. These candidate measurements are local.

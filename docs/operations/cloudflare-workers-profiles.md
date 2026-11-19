@@ -121,10 +121,12 @@ The build copies the two sitemaps, robots.txt and icon.png from the matching Nex
 Keep those paths Worker-first in both deployment profiles. The exact analytics policy GET uses the current
 request's privacy signals and retains private, no-store caching.
 
-The anonymous homepage uses the website's `WEBSITE_VERSION` version metadata binding in its Cache API key,
-along with origin, language, consent and crawler type. A missing version bypasses cache reuse. A stale entry
-can start one refresh per key in the same isolate while other visitors receive the cached page.
-Freshness is 60 seconds. A release or a new Cloudflare location can require a cold render.
+The anonymous homepage and `/create` use separate Cache API entries per website version (`WEBSITE_VERSION`),
+origin, language, consent and crawler type. Each document stays fresh for 24 hours. During the following hour,
+a visit can serve the existing document and start one background refresh per key in the same isolate.
+A release or a new Cloudflare location can require a fresh render. A missing version disables cache reuse.
+Session and guest identity cookies, task and mode parameters, and Next.js router requests bypass the cache.
+Browsers receive `private, no-store`.
 
 Each website request that reaches the application owns a lazy database pool. It stays open until its response stream and
 registered background work finish, then disconnects. Each jobs invocation owns its pool too.
