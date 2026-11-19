@@ -3,6 +3,7 @@ import {
 	expireGenerationDrafts,
 	expirePendingMediaUploadSessions,
 	monitorGuestOperationalSafety,
+	purgeExpiredAnalytics,
 	recoverExpiredPaymentEvents,
 	prepareWorkflowOutboxDelivery,
 	beginWorkflowOutboxExecution,
@@ -739,14 +740,22 @@ async function executeParsedTask(
 		}
 		case "media-expire-uploads": {
 			const { timestamp } = parseTaskPayload(taskId, payload);
-			return expireMediaUploads(
-				{ limit: 100, now: timestamp === undefined ? now() : new Date(timestamp) },
-				{
-					expireDrafts: (at) => expireGenerationDrafts(at, db),
-					expireUploadSessions: (at, limit) =>
-						expirePendingMediaUploadSessions({ now: at, limit }, db),
-				},
-			);
+			const scheduledAt = timestamp === undefined ? now() : new Date(timestamp);
+			let uploadExpiry: Awaited<ReturnType<typeof expireMediaUploads>>;
+			try {
+				// Reuse the cleanup cadence and let a failed analytics sweep be retried.
+				await purgeExpiredAnalytics();
+			} finally {
+				uploadExpiry = await expireMediaUploads(
+					{ limit: 100, now: scheduledAt },
+					{
+						expireDrafts: (at) => expireGenerationDrafts(at, db),
+						expireUploadSessions: (at, limit) =>
+							expirePendingMediaUploadSessions({ now: at, limit }, db),
+					},
+				);
+			}
+			return uploadExpiry;
 		}
 		case "media-grant-billing-periods":
 			return grantBillingPeriods({ limit: 100 });

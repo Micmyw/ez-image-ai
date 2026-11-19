@@ -57,6 +57,9 @@ const mocks = vi.hoisted(() => {
 		verify: vi.fn(),
 		finalize: vi.fn(),
 		expireGuest: vi.fn(),
+		expireDrafts: vi.fn(async () => 2),
+		expireUploadSessions: vi.fn(async () => 3),
+		purgeExpiredAnalytics: vi.fn(),
 		monitorGuest: vi.fn(),
 		findAssets: vi.fn(),
 		findAsset: vi.fn(),
@@ -119,8 +122,9 @@ vi.mock("@repo/database", async () => ({
 	MEDIA_VERIFICATION_OBSERVATION_SELECT: (
 		await import("../../../database/prisma/queries/media/continuations")
 	).MEDIA_VERIFICATION_OBSERVATION_SELECT,
-	expireGenerationDrafts: vi.fn(),
-	expirePendingMediaUploadSessions: vi.fn(),
+	expireGenerationDrafts: mocks.expireDrafts,
+	expirePendingMediaUploadSessions: mocks.expireUploadSessions,
+	purgeExpiredAnalytics: mocks.purgeExpiredAnalytics,
 	recoverExpiredPaymentEvents: mocks.recoverPayments,
 	recoverProviderOriginalArchives: mocks.recoverOriginalArchives,
 	monitorGuestOperationalSafety: mocks.monitorGuest,
@@ -1447,6 +1451,24 @@ describe("Node task executor", () => {
 				context,
 			),
 		).toMatchObject({ done: true, waitSeconds: 0 });
+	});
+
+	it("runs analytics retention in upload maintenance and still expires uploads if analytics fails", async () => {
+		const timestamp = Date.UTC(2026, 10, 19, 12, 15);
+		const task = { taskId: "media-expire-uploads", payload: { timestamp } };
+		await expect(executeTask(task, context)).resolves.toEqual({
+			expiredDrafts: 2,
+			expiredUploadSessions: 3,
+		});
+		mocks.purgeExpiredAnalytics.mockRejectedValueOnce(new Error("analytics purge failed"));
+		await expect(executeTask(task, context)).rejects.toThrow("analytics purge failed");
+		expect(mocks.purgeExpiredAnalytics).toHaveBeenCalledTimes(2);
+		expect(mocks.expireDrafts).toHaveBeenCalledTimes(2);
+		expect(mocks.expireUploadSessions).toHaveBeenCalledTimes(2);
+		expect(mocks.expireUploadSessions).toHaveBeenLastCalledWith(
+			{ now: new Date(timestamp), limit: 100 },
+			expect.anything(),
+		);
 	});
 
 	it("passes an explicit unlimited budget through scheduled safety monitoring", async () => {
