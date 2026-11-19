@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { expect, test, type Page } from "@playwright/test";
+import { devices, expect, test, type Page } from "@playwright/test";
 
 import {
 	HOMEPAGE_SHOWCASE_COMPACT_COMPARISON,
@@ -18,6 +18,7 @@ const allComparisonSources = [...firstComparison, ...compactComparison];
 const showcaseSelector = '[data-test="homepage-showcase"]';
 const enhancedShowcaseSelector = `${showcaseSelector}[data-showcase-enhanced]`;
 const nextChunks = /\/_next\/static\/[^?]+\.js(?:\?.*)?$/;
+const nextStylesheets = /\/_next\/static\/[^?]+\.css(?:\?.*)?$/;
 
 async function holdRequests(page: Page, url: string | RegExp) {
 	const ready = Promise.withResolvers<void>();
@@ -86,97 +87,123 @@ test.beforeEach(async ({ page }) => {
 	);
 });
 
-for (const { device, width, sources } of [
-	{ device: "desktop", width: 1440, sources: firstComparison },
-	{ device: "mobile", width: 390, sources: compactComparison },
+for (const { device, viewport, original, sources } of [
+	{
+		device: "desktop",
+		viewport: { width: 1440, height: 900 },
+		original: before,
+		sources: firstComparison,
+	},
+	{
+		device: "mobile",
+		viewport: { width: 390, height: 844 },
+		original: HOMEPAGE_SHOWCASE_COMPACT_COMPARISON.before,
+		sources: compactComparison,
+	},
 ]) {
-	test(`paints the first ${device} showcase comparison before hydration and requests each photo once`, async ({
-		page,
-	}) => {
-		test.setTimeout(75_000);
-		await page.setViewportSize({ width, height: 900 });
-		await page.emulateMedia({ reducedMotion: "reduce" });
-		const requests: string[] = [];
-		page.on("request", (request) => {
-			if (request.method() === "GET") requests.push(new URL(request.url()).pathname);
-		});
-		const comparisonRequests = () =>
-			requests.filter((url) => allComparisonSources.includes(url)).sort();
-		const releaseChunks = await holdRequests(page, nextChunks);
-		const dialog = page.locator(showcaseSelector);
-		const photos = dialog.locator(".homepage-showcase-comparison img");
-		const close = dialog.getByRole("button", { name: "Close previews", exact: true });
+	test.describe(`${device} startup`, () => {
+		const { deviceScaleFactor, hasTouch, isMobile, userAgent } = devices["Pixel 7"];
+		test.use(
+			device === "mobile"
+				? { viewport, deviceScaleFactor, hasTouch, isMobile, userAgent }
+				: { viewport },
+		);
+		test(`paints the first ${device} showcase comparison before hydration and requests each photo once`, async ({
+			page,
+		}) => {
+			test.setTimeout(75_000);
+			await page.emulateMedia({ reducedMotion: "reduce" });
+			const requests: string[] = [];
+			page.on("request", (request) => {
+				if (request.method() === "GET") requests.push(new URL(request.url()).pathname);
+			});
+			const comparisonRequests = () =>
+				requests.filter((url) => allComparisonSources.includes(url)).sort();
+			const releaseStylesheets = await holdRequests(page, nextStylesheets);
+			const releaseChunks = await holdRequests(page, nextChunks);
+			const dialog = page.locator(showcaseSelector);
+			const photos = dialog.locator(".homepage-showcase-comparison img");
+			const close = dialog.getByRole("button", { name: "Close previews", exact: true });
 
-		try {
-			await page.goto("/?utm_source=showcase-check", { waitUntil: "commit" });
-			await expect.poll(comparisonRequests).toEqual(sources);
-			await expect(dialog).toBeVisible();
-			await expect(page.locator(enhancedShowcaseSelector)).toHaveCount(0);
-			for (const href of sources) {
-				await expect(
-					page.locator(`link[rel="preload"][as="image"][href="${href}"]`),
-				).toHaveAttribute("fetchpriority", "high");
+			try {
+				await page.goto("/?utm_source=showcase-check", { waitUntil: "commit" });
+				await expect.poll(() => requests.some((url) => nextStylesheets.test(url))).toBe(true);
+				await expect
+					.poll(comparisonRequests, {
+						message: "the original photo should be requested while CSS is blocked",
+					})
+					.toContain(original);
+				releaseStylesheets();
+				await expect.poll(comparisonRequests).toEqual(sources);
+				await expect(dialog).toBeVisible();
+				await expect(page.locator(enhancedShowcaseSelector)).toHaveCount(0);
+				for (const href of sources) {
+					await expect(
+						page.locator(`link[rel="preload"][as="image"][href="${href}"]`),
+					).toHaveAttribute("fetchpriority", "high");
+				}
+				await expect(photos).toHaveCount(2);
+				for (const photo of await photos.all()) await expect(photo).toBeInViewport({ ratio: 0.4 });
+				await expect
+					.poll(() =>
+						photos.evaluateAll((images) =>
+							images
+								.filter(
+									(image): image is HTMLImageElement =>
+										image instanceof HTMLImageElement &&
+										image.complete &&
+										image.naturalWidth > 0 &&
+										image.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+								)
+								.map((image) => new URL(image.currentSrc).pathname)
+								.sort(),
+						),
+					)
+					.toEqual(sources);
+				await expect(dialog.getByRole("heading")).toHaveText("Your photo, painted differently.");
+				await close.focus();
+				await expect(close).toBeFocused();
+				const shownBeforeHydration = await dialog.elementHandle();
+
+				releaseChunks();
+				await expect(page.locator(enhancedShowcaseSelector)).toBeVisible();
+				expect(
+					await dialog.evaluate((node, previous) => node === previous, shownBeforeHydration),
+				).toBe(true);
+				await expect(close).toBeFocused();
+			} finally {
+				releaseStylesheets();
+				releaseChunks();
 			}
-			await expect(photos).toHaveCount(2);
-			for (const photo of await photos.all()) await expect(photo).toBeInViewport({ ratio: 0.4 });
+
+			const images = dialog.locator(
+				".homepage-showcase-comparison img, .homepage-showcase-picker img",
+			);
+			await expect(images).toHaveCount(2 + HOMEPAGE_SHOWCASE_KEYS.length);
 			await expect
 				.poll(() =>
-					photos.evaluateAll((images) =>
-						images
-							.filter(
-								(image): image is HTMLImageElement =>
-									image instanceof HTMLImageElement &&
-									image.complete &&
-									image.naturalWidth > 0 &&
-									image.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
-							)
-							.map((image) => new URL(image.currentSrc).pathname)
-							.sort(),
+					images.evaluateAll((items) =>
+						items.every((item) => item instanceof HTMLImageElement && item.naturalWidth > 0),
 					),
 				)
-				.toEqual(sources);
-			await expect(dialog.getByRole("heading")).toHaveText("Your photo, painted differently.");
-			await close.focus();
-			await expect(close).toBeFocused();
-			const shownBeforeHydration = await dialog.elementHandle();
-
-			releaseChunks();
-			await expect(page.locator(enhancedShowcaseSelector)).toBeVisible();
-			expect(
-				await dialog.evaluate((node, previous) => node === previous, shownBeforeHydration),
-			).toBe(true);
-			await expect(close).toBeFocused();
-		} finally {
-			releaseChunks();
-		}
-
-		const images = dialog.locator(
-			".homepage-showcase-comparison img, .homepage-showcase-picker img",
-		);
-		await expect(images).toHaveCount(2 + HOMEPAGE_SHOWCASE_KEYS.length);
-		await expect
-			.poll(() =>
-				images.evaluateAll((items) =>
-					items.every((item) => item instanceof HTMLImageElement && item.naturalWidth > 0),
-				),
-			)
-			.toBe(true);
-		expect(comparisonRequests()).toEqual(sources);
-		for (const key of HOMEPAGE_SHOWCASE_KEYS.slice(1)) {
-			const media = HOMEPAGE_SHOWCASE_MEDIA[key];
-			expect(requests).toContain(media.thumbnail);
-			expect(requests).not.toContain(media.poster);
-			if ("before" in media) expect(requests).not.toContain(media.before);
-			if ("images" in media) {
-				for (const image of media.images) expect(requests).not.toContain(image);
+				.toBe(true);
+			expect(comparisonRequests()).toEqual(sources);
+			for (const key of HOMEPAGE_SHOWCASE_KEYS.slice(1)) {
+				const media = HOMEPAGE_SHOWCASE_MEDIA[key];
+				expect(requests).toContain(media.thumbnail);
+				expect(requests).not.toContain(media.poster);
+				if ("before" in media) expect(requests).not.toContain(media.before);
+				if ("images" in media) {
+					for (const image of media.images) expect(requests).not.toContain(image);
+				}
+				if ("video" in media) expect(requests).not.toContain(media.video);
 			}
-			if ("video" in media) expect(requests).not.toContain(media.video);
-		}
-		await dialog.getByRole("button", { name: "Vintage portrait", exact: true }).click();
-		await expect(dialog.locator('[data-test="showcase-create"]')).toHaveAttribute(
-			"href",
-			"/create?example=vintage-photo",
-		);
+			await dialog.getByRole("button", { name: "Vintage portrait", exact: true }).click();
+			await expect(dialog.locator('[data-test="showcase-create"]')).toHaveAttribute(
+				"href",
+				"/create?example=vintage-photo",
+			);
+		});
 	});
 }
 

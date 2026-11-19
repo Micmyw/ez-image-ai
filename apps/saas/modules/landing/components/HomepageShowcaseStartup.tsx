@@ -4,6 +4,7 @@ import { useServerInsertedHTML } from "next/navigation";
 import { useRef } from "react";
 
 import {
+	allowsHomepageShowcaseQuery,
 	HOMEPAGE_SHOWCASE_COMPACT_COMPARISON,
 	HOMEPAGE_SHOWCASE_COMPACT_QUERY,
 	HOMEPAGE_SHOWCASE_DELAY_MS,
@@ -18,12 +19,15 @@ const firstShowcase = HOMEPAGE_SHOWCASE_MEDIA[HOMEPAGE_SHOWCASE_KEYS[0]];
 
 // Only the document knows its fragment. Select a pair once for both preloading and display.
 const startupScript = `(() => {
-	if (location.pathname !== "/" || location.hash) return;
+	if (location.pathname !== "/" || location.hash ||
+		!(${allowsHomepageShowcaseQuery.toString()})(new URLSearchParams(location.search).keys())) return;
+	const script = document.getElementById(${JSON.stringify(HOMEPAGE_SHOWCASE_PRELOAD_ID)});
+	if (!script || script.homepageShowcaseStart || document.getElementById('homepage-showcase')?.homepageShowcase) return;
 	const sources = matchMedia(${JSON.stringify(HOMEPAGE_SHOWCASE_COMPACT_QUERY)}).matches
 		? ${JSON.stringify(HOMEPAGE_SHOWCASE_COMPACT_COMPARISON)}
 		: ${JSON.stringify({ before: firstShowcase.before, poster: firstShowcase.poster })};
 	const start = { href: location.href, time: performance.now(), sources };
-	document.currentScript.homepageShowcaseStart = start;
+	script.homepageShowcaseStart = start;
 	for (const href of [sources.before, sources.poster]) {
 		const link = document.createElement("link");
 		link.rel = "preload";
@@ -51,12 +55,15 @@ const startupScript = `(() => {
 export function HomepageShowcaseStartup() {
 	const inserted = useRef(false);
 	// The script belongs to the initial HTML stream, not the RSC payload or a client transition.
+	// An async module can execute while the earlier stylesheets are still downloading.
 	useServerInsertedHTML(() => {
 		if (inserted.current) return null;
 		inserted.current = true;
 		return (
 			<script
 				id={HOMEPAGE_SHOWCASE_PRELOAD_ID}
+				type="module"
+				async
 				dangerouslySetInnerHTML={{ __html: startupScript }}
 			/>
 		);
