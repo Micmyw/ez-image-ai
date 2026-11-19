@@ -693,11 +693,14 @@ for (const [key, label] of [
 	["ArrowUp", "Français"],
 ] as const) {
 	test(`the language menu supports a first keyboard open with ${key}`, async ({ page }) => {
-		await page.goto("/");
+		// Use a direct editor entry to test the menu independently of the automatic homepage preview.
+		await page.goto("/?mode=image");
 		await expect(stage(page, "ready")).toBeVisible();
 		const trigger = page.getByRole("button", { name: "Language", exact: true });
+		await expect(trigger).toBeVisible();
 		await trigger.focus();
-		await trigger.press(key);
+		await expect(trigger).toBeFocused();
+		await page.keyboard.press(key);
 		await expect(page.getByRole("menuitemradio", { name: label, exact: true })).toBeFocused();
 		await page.keyboard.press("Escape");
 		await expect(page.getByRole("menu")).toBeHidden();

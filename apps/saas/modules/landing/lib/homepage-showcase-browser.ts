@@ -141,6 +141,24 @@ export function mountHomepageShowcase(
 		}
 	}
 
+	function hasActiveInteraction() {
+		const focused = document.activeElement;
+		if (focused?.isConnected && focused !== document.body && focused !== document.documentElement)
+			return true;
+
+		// Honor pointer activation and the trigger's expanded state before a lazy popup mounts.
+		const pressedControl =
+			':active:is(a[href], button, input, select, textarea, label, summary, [tabindex], [contenteditable], [role^="menuitem"], [aria-haspopup])';
+		const expandedPopupTrigger =
+			'[aria-expanded="true"]:is([aria-haspopup]:not([aria-haspopup="false"]), [role="combobox"])';
+		if (document.querySelector(`${pressedControl}, ${expandedPopupTrigger}`)) return true;
+		if (CSS.supports("selector(:popover-open)") && document.querySelector(":popover-open"))
+			return true;
+		return Array.from(document.querySelectorAll('[role="menu"], [role="listbox"]')).some(
+			(popup) => !popup.closest("[hidden]") && popup.getClientRects().length > 0,
+		);
+	}
+
 	function reveal() {
 		window.clearTimeout(timer);
 		if (
@@ -156,12 +174,7 @@ export function mountHomepageShowcase(
 			timer = window.setTimeout(reveal, wait);
 			return;
 		}
-		const active = document.activeElement;
-		// A lazy drawer's trigger is expanded before its dialog enters the document.
-		const openingDialog = document.querySelector(
-			'[aria-haspopup="dialog"]:is([aria-expanded="true"], :active)',
-		);
-		if (active?.closest("[data-consent-banner], #image-editor") || openingDialog || !canOpen()) {
+		if (hasActiveInteraction() || !canOpen()) {
 			timer = window.setTimeout(reveal, 500);
 			return;
 		}

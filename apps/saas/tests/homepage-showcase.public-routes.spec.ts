@@ -335,7 +335,9 @@ test("the automatic showcase waits while a privacy choice has focus", async ({ p
 	}
 });
 
-test("the automatic showcase waits for the mobile navigation drawer to close", async ({ page }) => {
+test("the automatic showcase waits until focus leaves the mobile navigation drawer and opener", async ({
+	page,
+}) => {
 	test.setTimeout(75_000);
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.clock.install();
@@ -375,6 +377,63 @@ test("the automatic showcase waits for the mobile navigation drawer to close", a
 		await expect(drawer.locator('a[href="/image-to-image"]')).toBeVisible();
 		await drawer.getByRole("button", { name: "Close", exact: true }).click();
 		await expect(drawer).toBeHidden();
+		await expect(navigation).toBeFocused();
+		await page.clock.runFor(500);
+		await expect(preview).toBeHidden();
+		await expect(navigation).toBeFocused();
+		await page.getByRole("heading", { level: 1 }).click();
+		await expect(preview).toBeVisible();
+	} finally {
+		releaseOriginal();
+	}
+});
+
+test("the automatic showcase leaves keyboard focus in the language menu and on its opener", async ({
+	page,
+}) => {
+	test.setTimeout(75_000);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.clock.install();
+	const releaseOriginal = await holdRequests(page, `**${before}`);
+	const preview = page.locator(showcaseSelector);
+	const language = page.getByRole("button", { name: "Language", exact: true });
+	const menu = page.getByRole("menu");
+	try {
+		await page.goto("/", { waitUntil: "domcontentloaded" });
+		await expect(page.locator(enhancedShowcaseSelector)).toBeAttached();
+		const releaseMenu = await holdRequests(page, nextChunks);
+		try {
+			await expect(preview).toBeHidden();
+			await expect(language).toBeVisible();
+			await language.focus();
+			await expect(language).toBeFocused();
+			await page.keyboard.press("ArrowDown");
+			await expect(language).toHaveAttribute("aria-busy", "true");
+			await expect(menu).toBeHidden();
+			releaseOriginal();
+			await preview
+				.locator('img[data-showcase-source="before"]')
+				.evaluate((image: HTMLImageElement) => image.decode());
+			await page.clock.runFor(HOMEPAGE_SHOWCASE_DELAY_MS + 500);
+			await expect(preview).toBeHidden();
+			await expect(language).toBeFocused();
+		} finally {
+			releaseMenu();
+		}
+
+		await expect(menu.getByRole("menuitemradio", { name: "English", exact: true })).toBeFocused();
+		await page.keyboard.press("ArrowDown");
+		const german = menu.getByRole("menuitemradio", { name: "Deutsch", exact: true });
+		await page.clock.runFor(500);
+		await expect(preview).toBeHidden();
+		await expect(german).toBeFocused();
+		await page.keyboard.press("Escape");
+		await expect(menu).toBeHidden();
+		await expect(language).toBeFocused();
+		await page.clock.runFor(500);
+		await expect(preview).toBeHidden();
+		await expect(language).toBeFocused();
+		await page.getByRole("heading", { level: 1 }).click();
 		await expect(preview).toBeVisible();
 	} finally {
 		releaseOriginal();
