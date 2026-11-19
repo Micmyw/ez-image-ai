@@ -1486,6 +1486,7 @@ export function GenerationForm({
 					outcome={safetyOutcome}
 					reason={getModerationErrorReason(error)}
 					billing="beforeGeneration"
+					offerPortraitPack={active}
 					fundingSource={fundingSource}
 					onRevise={() => document.getElementById("generation-prompt")?.focus()}
 				/>

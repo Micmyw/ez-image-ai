@@ -1156,6 +1156,20 @@ model GuestTrialEntitlement {
   @@index([trialId])
   @@map("guest_trial_entitlement")
 }
+
+// Trial openings are immutable per signed browser or registered account.
+model PortraitPackTrial {
+  subjectKey String
+  slot       Int
+  requestId  String
+  cardKeys   Json
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@id([subjectKey, slot])
+  @@unique([subjectKey, requestId])
+  @@map("portrait_pack_trial")
+}
+
 model GuestSessionBootstrap {
   id                      String           @id @default(cuid())
   ownerId                 String?

@@ -17,6 +17,27 @@ const sqliteBigInt = customType<{ data: bigint; driverData: string }>({
 	toDriver: (value) => value.toString(),
 });
 // Tables
+export const portraitPackTrial = sqliteTable(
+	"portrait_pack_trial",
+	{
+		subjectKey: text("subjectKey").notNull(),
+		slot: integer("slot").notNull(),
+		requestId: text("requestId").notNull(),
+		cardKeys: text("cardKeys", { mode: "json" }).$type<string[]>().notNull(),
+		createdAt: integer("createdAt", { mode: "timestamp_ms" })
+			.notNull()
+			.$defaultFn(() => new Date()),
+	},
+	(table) => [
+		primaryKey({ columns: [table.subjectKey, table.slot] }),
+		check("portrait_pack_trial_slot_range", sql`${table.slot} BETWEEN 1 AND 2`),
+		uniqueIndex("portrait_pack_trial_subjectKey_requestId_key").on(
+			table.subjectKey,
+			table.requestId,
+		),
+	],
+);
+
 export const guestTrialEntitlement = sqliteTable(
 	"guest_trial_entitlement",
 	{

@@ -37,7 +37,15 @@ import { BeforeAfterSlider } from "./BeforeAfterSlider";
 import { InlineOutputPreview } from "./InlineOutputPreview";
 import { usePrivateAssetPreview } from "./use-private-asset-preview";
 
-export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNew: () => void }) {
+export function EditorResultPanel({
+	jobId,
+	onNew,
+	offerPortraitPack = false,
+}: {
+	jobId: string | null;
+	onNew: () => void;
+	offerPortraitPack?: boolean;
+}) {
 	const t = useTranslations("media.status");
 	const tools = useTranslations("studio.tools");
 	const pass = useTranslations("imagePass");
@@ -187,7 +195,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 					? pass("fundingPolicy")
 					: creditSummary(t, job.data)}
 			</p>
-			<ModerationNotice job={job.data} />
+			<ModerationNotice job={job.data} offerPortraitPack={offerPortraitPack} />
 			<GenerationFailureNotice job={job.data} />
 			{presentation.stage === "ready" && output && (
 				<WallpaperResultPublisher

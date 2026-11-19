@@ -3,6 +3,7 @@ export const PUBLIC_PAGE_LANGUAGES: Record<string, readonly string[]> = {
 	"/": ["en", "de", "es", "fr"],
 	"/create": ["en", "de", "es", "fr"],
 	"/examples": ["en", "de", "es", "fr"],
+	"/portrait-packs": ["en", "de", "es", "fr"],
 	"/image-to-image": ["en", "de", "es", "fr"],
 	"/pricing": ["en", "de", "es", "fr"],
 	"/contact": ["en", "de", "es", "fr"],

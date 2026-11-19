@@ -1,4 +1,37 @@
 {
+	"portraitPacks": {
+		"name": "Porträtpacks",
+		"navigationDescription": "Öffne ein Pack mit KI-Modeporträts.",
+		"collection": "The Style Edit",
+		"fiveCards": "5 Karten",
+		"tearHere": "Zum Aufreißen wischen",
+		"pageDescription": "Öffne ein Pack mit fünf KI-Modeporträts, vom roten Teppich bis zum Strand und Pool.",
+		"terms": "Zwei kostenlose Packs als Gast und zwei weitere nach der Anmeldung. Jedes bezahlte Abo oder Credit-Paket schaltet unbegrenzt viele Packs für dein Konto frei. Jedes Pack enthält fünf verschiedene Porträts.",
+		"invitationTitle": "Ein Porträtpack öffnen?",
+		"invitationDescription": "Deine Bildanfrage wurde blockiert. Probiere ein Pack mit fünf fertigen Modeporträts.",
+		"tryPack": "Pack ausprobieren",
+		"later": "Vielleicht später",
+		"close": "Schließen",
+		"open": "Pack öffnen",
+		"opening": "Wird geöffnet…",
+		"another": "Noch ein Pack öffnen",
+		"revealed": "Deine fünf Porträtkarten",
+		"checking": "Zugriff wird geprüft…",
+		"retryAccess": "Zugriff erneut prüfen",
+		"retryOpen": "Erneut öffnen",
+		"openError": "Das Pack konnte nicht geladen werden. Versuche, es erneut zu öffnen.",
+		"backToCards": "Zurück zu den Karten",
+		"saveImage": "Bild speichern",
+		"signIn": "Für 2 Gratis-Packs anmelden",
+		"plans": "Abos und Credit-Pakete",
+		"access": {
+			"guestTrial": "{count, plural, one {# kostenloses Gastpack übrig} other {# kostenlose Gastpacks übrig}}",
+			"accountTrial": "{count, plural, one {# kostenloses Pack für dein Konto übrig} other {# kostenlose Packs für dein Konto übrig}}",
+			"guestUsed": "Du hast deine zwei Gastpacks geöffnet. Melde dich für zwei weitere an.",
+			"accountUsed": "Jedes bezahlte Abo oder Credit-Paket schaltet unbegrenzt viele Packs frei.",
+			"unlocked": "Unbegrenzt viele Packs · Öffnen ohne Credits"
+		}
+	},
 	"publicContent": {
 		"contact": {
 			"description": "Kontaktieren Sie {appName} für Unterstützung oder um verbotene Inhalte zu melden.",

@@ -28,6 +28,25 @@ export const notificationTypeEnum = mysqlEnum("NotificationType", [
 export const notificationTargetEnum = mysqlEnum("NotificationTarget", ["IN_APP", "EMAIL"]);
 
 // Tables
+export const portraitPackTrial = mysqlTable(
+	"portrait_pack_trial",
+	{
+		subjectKey: varchar("subjectKey", { length: 255 }).notNull(),
+		slot: int("slot").notNull(),
+		requestId: varchar("requestId", { length: 255 }).notNull(),
+		cardKeys: json("cardKeys").$type<string[]>().notNull(),
+		createdAt: timestamp("createdAt", { fsp: 3 }).notNull().defaultNow(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.subjectKey, table.slot] }),
+		check("portrait_pack_trial_slot_range", sql`${table.slot} BETWEEN 1 AND 2`),
+		uniqueIndex("portrait_pack_trial_subjectKey_requestId_key").on(
+			table.subjectKey,
+			table.requestId,
+		),
+	],
+);
+
 export const guestTrialEntitlement = mysqlTable(
 	"guest_trial_entitlement",
 	{

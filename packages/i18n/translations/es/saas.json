@@ -1,4 +1,37 @@
 {
+	"portraitPacks": {
+		"name": "Packs de retratos",
+		"navigationDescription": "Abre un pack de retratos de moda con IA.",
+		"collection": "The Style Edit",
+		"fiveCards": "5 cartas",
+		"tearHere": "Desliza para abrir",
+		"pageDescription": "Abre un pack de cinco retratos de moda con IA, desde la alfombra roja hasta la playa y la piscina.",
+		"terms": "Dos packs gratis como invitado y dos más al iniciar sesión. Cualquier suscripción de pago o paquete de créditos desbloquea aperturas ilimitadas para tu cuenta. Cada pack contiene cinco retratos distintos.",
+		"invitationTitle": "¿Quieres abrir un pack de retratos?",
+		"invitationDescription": "Tu solicitud de imagen se bloqueó. Prueba un pack con cinco retratos de moda ya preparados.",
+		"tryPack": "Probar un pack",
+		"later": "Quizá más tarde",
+		"close": "Cerrar",
+		"open": "Abrir pack",
+		"opening": "Abriendo…",
+		"another": "Abrir otro pack",
+		"revealed": "Tus cinco cartas de retratos",
+		"checking": "Comprobando el acceso…",
+		"retryAccess": "Volver a comprobar el acceso",
+		"retryOpen": "Volver a abrir",
+		"openError": "El pack no se cargó. Intenta abrirlo de nuevo.",
+		"backToCards": "Volver a las cartas",
+		"saveImage": "Guardar imagen",
+		"signIn": "Iniciar sesión para 2 packs gratis",
+		"plans": "Ver planes y paquetes de créditos",
+		"access": {
+			"guestTrial": "{count, plural, one {Queda # pack gratis como invitado} other {Quedan # packs gratis como invitado}}",
+			"accountTrial": "{count, plural, one {Queda # pack gratis para tu cuenta} other {Quedan # packs gratis para tu cuenta}}",
+			"guestUsed": "Ya abriste tus dos packs de invitado. Inicia sesión para recibir dos más.",
+			"accountUsed": "Cualquier suscripción de pago o paquete de créditos desbloquea aperturas ilimitadas.",
+			"unlocked": "Packs ilimitados · Sin créditos por apertura"
+		}
+	},
 	"publicContent": {
 		"contact": {
 			"description": "Contacta con {appName} para recibir ayuda o denunciar contenido prohibido.",

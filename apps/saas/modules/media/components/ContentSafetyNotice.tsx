@@ -6,6 +6,8 @@ import { Button } from "@repo/ui/components/button";
 import { InfoIcon, ShieldAlertIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { LazyPortraitPackInvitation } from "../../portrait-packs/components/LazyPortraitPackInvitation";
+
 export type SafetyBillingOutcome =
 	| "beforeGeneration"
 	| "waived"
@@ -26,6 +28,7 @@ export function ContentSafetyNotice({
 	jobId,
 	onRevise,
 	providerRejection = false,
+	offerPortraitPack = false,
 	className,
 }: {
 	stage: "prompt" | "input" | "output";
@@ -37,6 +40,7 @@ export function ContentSafetyNotice({
 	jobId?: string;
 	onRevise?: () => void;
 	providerRejection?: boolean;
+	offerPortraitPack?: boolean;
 	className?: string;
 }) {
 	const t = useTranslations("media.safety");
@@ -134,6 +138,7 @@ export function ContentSafetyNotice({
 						{t(blocked ? "appeal" : "support")}
 					</a>
 				</div>
+				{blocked && offerPortraitPack && <LazyPortraitPackInvitation />}
 				{jobId && (
 					<p className="text-xs text-muted-foreground">
 						{t("reference")} <code className="mt-1 block break-all select-all">{jobId}</code>

@@ -2,11 +2,11 @@ export const privacyPolicyDocuments = [
 	{
 		path: "privacy-policy",
 		locale: "en",
-		updatedAt: "2026-11-02",
+		updatedAt: "2026-11-19",
 		title: "Privacy Policy",
 		description:
 			"How EzImageAI handles account data, private image-editing media, analytics consent, and retention.",
-		body: `_Last updated: November 2, 2026_
+		body: `_Last updated: November 19, 2026_
 
 This policy explains how EzImageAI handles information when you use the public image editor, prepare a short-lived draft, use an available Nano Banana 2 Lite 1K guest trial, create an account, or use the signed-in editor. EzImageAI is an independently operated service run by an individual. Its operator is responsible for the information handled by the service and can be reached through the [Contact page](/contact) for privacy questions and requests.
 
@@ -23,6 +23,8 @@ To investigate interrupted image-pass and credit-pack payments, EzImageAI record
 The public homepage can prepare a short-lived draft containing the source image, selected image product and output settings, and instruction. When the Nano Banana 2 Lite 1K guest trial is enabled and you continue, EzImageAI creates a temporary anonymous user and session to authorize one private source image, one instruction, one generation job, and one watermarked preview. The trial uses sponsored credits and does not create a subscription or payment charge. Other paid image products and account features require the access shown by the product.
 
 To enforce trial limits and protect the service, EzImageAI stores pseudonymous HMAC values derived from the temporary session, a browser device identifier, the trusted network address, and a normalized subnet. Stored values are not the raw identifiers. This evidence supports security, rate limits, replay prevention, and sponsored-risk controls; it is not used for advertising.
+
+Portrait Packs uses the essential signed guest cookie or your signed-in account to check trial access. EzImageAI retains pseudonymous trial receipts and the selected card identifiers to enforce the trial limit and restore a previously opened pack. The cards come from a prepared collection and the feature receives only the opening request, independently of the editor's prompts and source images.
 
 ## Private media and access
 
@@ -67,11 +69,11 @@ EzImageAI uses owner checks, private storage, short-lived access, moderation, id
 	{
 		path: "privacy-policy",
 		locale: "de",
-		updatedAt: "2026-11-02",
+		updatedAt: "2026-11-19",
 		title: "Datenschutzerklärung",
 		description:
 			"Wie EzImageAI Kontodaten, private Medien zur Bildbearbeitung, Analyse-Einwilligung und Aufbewahrung behandelt.",
-		body: `_Zuletzt aktualisiert: 2. November 2026_
+		body: `_Zuletzt aktualisiert: 19. November 2026_
 
 Diese Erklärung beschreibt, wie EzImageAI Informationen verarbeitet, wenn Sie den öffentlichen Bildeditor nutzen, einen kurzlebigen Entwurf vorbereiten, einen verfügbaren Nano-Banana-2-Lite-1K-Gasttest verwenden, ein Konto erstellen oder den angemeldeten Editor nutzen. EzImageAI wird unabhängig von einer Einzelperson betrieben. Der Betreiber ist für die vom Dienst verarbeiteten Informationen verantwortlich und über die [Kontaktseite](/contact) für Datenschutzfragen und Anfragen erreichbar.
 
@@ -88,6 +90,8 @@ Zur Untersuchung unterbrochener Zahlungen für Bild- und Guthabenpakete speicher
 Die öffentliche Startseite kann einen kurzlebigen Entwurf mit Quellbild, ausgewähltem Bildprodukt und Ausgabeeinstellungen sowie einer Anweisung erstellen. Wenn der Nano-Banana-2-Lite-1K-Gasttest aktiviert ist und Sie fortfahren, erstellt EzImageAI vorübergehend einen anonymen Benutzer und eine Sitzung. Damit werden ein privates Quellbild, eine Anweisung, ein Auftrag und eine mit Wasserzeichen versehene Vorschau autorisiert. Der Test verwendet gesponserte Credits und erzeugt weder ein Abonnement noch eine Zahlung. Andere kostenpflichtige Bildprodukte und Kontofunktionen erfordern den im Produkt angezeigten Zugriff.
 
 Zur Durchsetzung der Testgrenzen und zum Schutz des Dienstes speichert EzImageAI pseudonyme HMAC-Werte, die aus der temporären Sitzung, einer Browser-Gerätekennung, der vertrauenswürdig ermittelten Netzwerkadresse und einem normalisierten Subnetz abgeleitet werden. Gespeichert werden nicht die Rohwerte. Diese Nachweise dienen Sicherheit, Ratenbegrenzung, Replay-Schutz und dem gesponserten Risikolimit; sie werden nicht für Werbung genutzt.
+
+Porträtpacks verwenden das notwendige signierte Gast-Cookie oder Ihr angemeldetes Konto, um den Testzugang zu prüfen. EzImageAI speichert pseudonyme Testnachweise und die Kartenkennungen, um die Testgrenze durchzusetzen und bereits geöffnete Packs wiederherzustellen. Die Karten stammen aus einer vorbereiteten Sammlung. Die Funktion erhält nur die Anfrage zum Öffnen, unabhängig von den Anweisungen und Quellbildern im Editor.
 
 ## Private Medien und Zugriff
 

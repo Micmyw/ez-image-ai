@@ -282,6 +282,7 @@ export function ImageSourcePanel({
 				<ContentSafetyNotice
 					stage="input"
 					outcome={safetyMessage === "blocked" ? "blocked" : "unavailable"}
+					offerPortraitPack={active}
 					reason={
 						currentTemporaryReference
 							? temporaryPresentation.moderationReason

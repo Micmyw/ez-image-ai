@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { useGuestTrial } from "../../hooks/use-guest-trial";
+import { useGenerationMode } from "../../lib/generation-mode-context";
 import { ContentSafetyNotice } from "../ContentSafetyNotice";
 import { GuestConversionActions } from "./GuestConversionActions";
 import { GuestResultCard } from "./GuestResultCard";
@@ -33,6 +34,7 @@ export function GuestTrialWorkspace({
 	originalClick?: { actionRef?: string; startedAt: number };
 }) {
 	const t = useTranslations("media.guest");
+	const active = useGenerationMode()?.mode !== "video";
 	const trial = useGuestTrial({ registered, effectReturnPath });
 	const [turnstileToken, setTurnstileToken] = useState(
 		GUEST_TURNSTILE_SITE_KEY ? "" : LOCAL_TURNSTILE_EVIDENCE,
@@ -43,6 +45,7 @@ export function GuestTrialWorkspace({
 	const linkHandler = trial.actions.beginLink;
 	const { setLinkHandler } = useGuestShellLinking(linkHandler);
 	const autoSubmissionStarted = useRef(false);
+	const manualSubmissionStarted = useRef(false);
 
 	useEffect(() => {
 		if (
@@ -83,6 +86,7 @@ export function GuestTrialWorkspace({
 
 	function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
+		manualSubmissionStarted.current = true;
 		const consumedTurnstileToken = GUEST_TURNSTILE_SITE_KEY
 			? turnstileToken
 			: `${LOCAL_TURNSTILE_EVIDENCE}-${crypto.randomUUID()}`;
@@ -279,6 +283,7 @@ export function GuestTrialWorkspace({
 									outcome={trial.moderationError.outcome}
 									reason={trial.moderationError.reason}
 									billing="beforeGeneration"
+									offerPortraitPack={active}
 									onRevise={() => document.getElementById("guest-edit-prompt")?.focus()}
 								/>
 							) : terminalFailure && trial.view.safety ? (
@@ -288,6 +293,9 @@ export function GuestTrialWorkspace({
 										outcome={trial.view.safety.outcome}
 										reason={trial.view.safety.reason}
 										billing="sponsored"
+										offerPortraitPack={
+											active && (autoSubmissionStarted.current || manualSubmissionStarted.current)
+										}
 										jobId={trial.view.jobId}
 									/>
 									<p className="text-sm text-muted-foreground">

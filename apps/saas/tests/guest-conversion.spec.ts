@@ -128,6 +128,32 @@ test("guest selection prepares before Generate and reuses the upload with the ed
 	}
 });
 
+test("a confirmed image rejection offers an independent portrait pack without submitting a job", async ({
+	page,
+	baseURL,
+}) => {
+	const fixture = await installGuestBoundaries(page, baseURL, []);
+	await page.route("**/api/media/guest-drafts/upload-completions", (route) =>
+		route.fulfill({ json: { status: "FAILED", code: "GUEST_UPLOAD_CONTENT_REJECTED" } }),
+	);
+	let accessReads = 0;
+	await page.route("**/api/rpc/portraitPacks/status", (route) => {
+		accessReads++;
+		return route.fulfill({ json: { json: { state: "guestTrial", remaining: 2, cards: null } } });
+	});
+	await openComposer(page);
+	await page.locator("#landing-source-image").setInputFiles(pngFile("reference.png"));
+	await page.locator("#landing-edit-prompt").fill("Edit this reference for the test.");
+	await page.locator('[data-test="landing-generate"]').click();
+	const invitation = page.getByRole("dialog", { name: "Want to open a portrait pack?" });
+	await expect(invitation).toBeVisible();
+	expect(accessReads).toBe(0);
+	await invitation.getByRole("button", { name: "Try a pack" }).click();
+	await expect(page.locator('[data-test="portrait-pack-open"]')).toBeEnabled();
+	expect(accessReads).toBe(1);
+	expect(fixture.submissions).toHaveLength(0);
+});
+
 test("replacing a preparing guest photo switches preview immediately and serializes upload identities", async ({
 	page,
 	baseURL,

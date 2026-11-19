@@ -4,7 +4,9 @@ import { ContentSafetyNotice, type SafetyBillingOutcome } from "./ContentSafetyN
 
 export function ModerationNotice({
 	job,
+	offerPortraitPack = false,
 }: {
+	offerPortraitPack?: boolean;
 	job: {
 		id?: string;
 		status: string;
@@ -43,6 +45,7 @@ export function ModerationNotice({
 			credits={job.creditsCharged}
 			jobId={job.id}
 			providerRejection={providerRejection}
+			offerPortraitPack={offerPortraitPack}
 		/>
 	);
 }

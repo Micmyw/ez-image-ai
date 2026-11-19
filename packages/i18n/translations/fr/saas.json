@@ -1,4 +1,37 @@
 {
+	"portraitPacks": {
+		"name": "Pochettes de portraits",
+		"navigationDescription": "Ouvrez une pochette de portraits de mode créés par IA.",
+		"collection": "The Style Edit",
+		"fiveCards": "5 cartes",
+		"tearHere": "Glissez pour déchirer",
+		"pageDescription": "Ouvrez une pochette de cinq portraits de mode créés par IA, du tapis rouge à la plage et à la piscine.",
+		"terms": "Deux pochettes gratuites sans compte, puis deux autres après connexion. Tout abonnement payant ou lot de crédits débloque des ouvertures illimitées pour votre compte. Chaque pochette contient cinq portraits différents.",
+		"invitationTitle": "Envie d’ouvrir une pochette de portraits ?",
+		"invitationDescription": "Votre demande d’image a été bloquée. Essayez une pochette de cinq portraits de mode déjà créés.",
+		"tryPack": "Essayer une pochette",
+		"later": "Peut-être plus tard",
+		"close": "Fermer",
+		"open": "Ouvrir la pochette",
+		"opening": "Ouverture…",
+		"another": "Ouvrir une autre pochette",
+		"revealed": "Vos cinq cartes de portraits",
+		"checking": "Vérification de l’accès…",
+		"retryAccess": "Revérifier l’accès",
+		"retryOpen": "Réessayer l’ouverture",
+		"openError": "La pochette n’a pas chargé. Réessayez de l’ouvrir.",
+		"backToCards": "Revenir aux cartes",
+		"saveImage": "Enregistrer l’image",
+		"signIn": "Se connecter pour 2 pochettes gratuites",
+		"plans": "Voir les offres et lots de crédits",
+		"access": {
+			"guestTrial": "{count, plural, one {# pochette gratuite restante sans compte} other {# pochettes gratuites restantes sans compte}}",
+			"accountTrial": "{count, plural, one {# pochette gratuite restante sur votre compte} other {# pochettes gratuites restantes sur votre compte}}",
+			"guestUsed": "Vous avez ouvert vos deux pochettes d’invité. Connectez-vous pour en ouvrir deux autres.",
+			"accountUsed": "Tout abonnement payant ou lot de crédits débloque des ouvertures illimitées.",
+			"unlocked": "Pochettes illimitées · Aucun crédit par ouverture"
+		}
+	},
 	"publicContent": {
 		"contact": {
 			"description": "Contactez {appName} pour obtenir de l’aide ou signaler un contenu interdit.",

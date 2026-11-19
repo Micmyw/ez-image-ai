@@ -96,6 +96,7 @@ import {
 	useGenerationMode,
 	useGeneratorSignInDraft,
 } from "../../media/lib/generation-mode-context";
+import { LazyPortraitPackInvitation } from "../../portrait-packs/components/LazyPortraitPackInvitation";
 import {
 	fullGuestCapabilityQueryOptions,
 	guestCapabilityQueryOptions,
@@ -1831,6 +1832,9 @@ function LandingGeneratorWorkspace({
 								)}
 							</AlertDescription>
 							<FeedbackButton supportEmail={config.supportEmail} variant="report" kind="bug" />
+							{submitError === "contentRejected" && workspace?.mode !== "video" && (
+								<LazyPortraitPackInvitation />
+							)}
 						</Alert>
 					)}
 				</form>

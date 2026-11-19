@@ -238,6 +238,12 @@ export const GuestTrialEntitlementScalarFieldEnumSchema = z.enum(['subjectKey', 
 
 export type GuestTrialEntitlementScalarFieldEnum = z.infer<typeof GuestTrialEntitlementScalarFieldEnumSchema>;
 
+// File: PortraitPackTrialScalarFieldEnum.schema.ts
+
+export const PortraitPackTrialScalarFieldEnumSchema = z.enum(['subjectKey', 'slot', 'requestId', 'cardKeys', 'createdAt'])
+
+export type PortraitPackTrialScalarFieldEnum = z.infer<typeof PortraitPackTrialScalarFieldEnumSchema>;
+
 // File: GuestSessionBootstrapScalarFieldEnum.schema.ts
 
 export const GuestSessionBootstrapScalarFieldEnumSchema = z.enum(['id', 'ownerId', 'promotionPeriod', 'claimHash', 'idempotencyKey', 'claimedDraftId', 'sourceAssetId', 'principalLeaseToken', 'principalLeaseExpiresAt', 'version', 'createdAt', 'expiresAt', 'completedAt'])
@@ -1543,6 +1549,19 @@ export const GuestTrialEntitlementSchema = z.object({
 });
 
 export type GuestTrialEntitlementType = z.infer<typeof GuestTrialEntitlementSchema>;
+
+
+// File: PortraitPackTrial.schema.ts
+
+export const PortraitPackTrialSchema = z.object({
+  subjectKey: z.string(),
+  slot: z.number().int(),
+  requestId: z.string(),
+  cardKeys: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
+  createdAt: z.date(),
+});
+
+export type PortraitPackTrialType = z.infer<typeof PortraitPackTrialSchema>;
 
 
 // File: GuestSessionBootstrap.schema.ts

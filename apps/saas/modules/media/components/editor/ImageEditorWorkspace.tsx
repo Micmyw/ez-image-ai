@@ -34,6 +34,7 @@ import {
 	type EditorWorkspaceState,
 } from "../../lib/editor-workspace-state";
 import type { GenerationFormValues } from "../../lib/form-schema";
+import { useGenerationMode } from "../../lib/generation-mode-context";
 import type { TemporaryReferenceReceipt } from "../../lib/temporary-reference-upload";
 import { useToolPrompt } from "../../lib/tool-prompt-context";
 import { loadWorkspaceDraft, saveWorkspaceDraft } from "../../lib/workspace-draft";
@@ -83,6 +84,8 @@ export function ImageEditorWorkspace({
 			? `${pathname}?example=${encodeURIComponent(example)}`
 			: pathname;
 	const jobId = searchParams.get("job");
+	const active = useGenerationMode()?.mode !== "video";
+	const [submittedJobId, setSubmittedJobId] = useState<string | null>(null);
 	const setResultActive = effectEditor?.setResultActive;
 	useEffect(() => {
 		setResultActive?.(Boolean(jobId));
@@ -335,7 +338,11 @@ export function ImageEditorWorkspace({
 					{t("workspace.closePreview")}
 				</Button>
 			</div>
-			<EditorResultPanel jobId={jobId} onNew={beginNewEdit} />
+			<EditorResultPanel
+				jobId={jobId}
+				onNew={beginNewEdit}
+				offerPortraitPack={active && jobId === submittedJobId}
+			/>
 		</div>
 	) : null;
 
@@ -389,7 +396,10 @@ export function ImageEditorWorkspace({
 					allowedImageSkuKeys={allowedImageSkuKeys}
 					initialSourceReady={sourceReady}
 					parentJobId={workspace.parentJobId}
-					onCreated={selectJob}
+					onCreated={(id) => {
+						setSubmittedJobId(id);
+						selectJob(id);
+					}}
 				/>
 				{effectEditor?.resultContainer
 					? createPortal(result, effectEditor.resultContainer)

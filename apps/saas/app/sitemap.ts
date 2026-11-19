@@ -26,6 +26,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 		// No invented dates for pages without a maintained editorial timestamp.
 		{ path: "/create", lastModified: undefined },
 		{ path: "/examples", lastModified: undefined },
+		{ path: "/portrait-packs", lastModified: undefined },
 		{ path: "/contact", lastModified: undefined },
 		{
 			path: "/changelog",

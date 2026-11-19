@@ -25,6 +25,25 @@ export const paymentProductKindEnum = pgEnum("PaymentProductKind", [
 
 export const ownerTypeEnum = pgEnum("OwnerType", ["USER", "ORGANIZATION"]);
 
+export const portraitPackTrial = pgTable(
+	"portrait_pack_trial",
+	{
+		subjectKey: text("subjectKey").notNull(),
+		slot: integer("slot").notNull(),
+		requestId: text("requestId").notNull(),
+		cardKeys: jsonb("cardKeys").$type<string[]>().notNull(),
+		createdAt: timestamp("createdAt", { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.subjectKey, table.slot] }),
+		check("portrait_pack_trial_slot_range", sql`${table.slot} BETWEEN 1 AND 2`),
+		uniqueIndex("portrait_pack_trial_subjectKey_requestId_key").on(
+			table.subjectKey,
+			table.requestId,
+		),
+	],
+);
+
 export const guestTrialEntitlement = pgTable(
 	"guest_trial_entitlement",
 	{

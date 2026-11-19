@@ -49,6 +49,7 @@ export const config = {
 		"/image-to-image",
 		"/image-pass",
 		"/photo-to-coloring-page",
+		"/portrait-packs",
 		"/christmas-wallpaper",
 		"/gta-6-wallpaper",
 		"/gta-loading-screen-generator",

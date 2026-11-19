@@ -7,6 +7,7 @@ export * from "./payment-attribution";
 export * from "./checkout-recovery";
 export * from "./checkout-diagnostics";
 export * from "./purchases";
+export * from "./portrait-packs";
 export * from "./users";
 export * from "./admin-access";
 export * from "./admin-analytics";

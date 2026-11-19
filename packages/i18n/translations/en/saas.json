@@ -1,4 +1,37 @@
 {
+	"portraitPacks": {
+		"name": "Portrait Packs",
+		"navigationDescription": "Open a pack of AI fashion portraits.",
+		"collection": "The Style Edit",
+		"fiveCards": "5 cards",
+		"tearHere": "Swipe to tear",
+		"pageDescription": "Open a pack of five AI fashion portraits, from red-carpet looks to beach and poolside styles.",
+		"terms": "Two free packs as a guest and two more when signed in. Any paid subscription or credit pack unlocks unlimited openings for your account. Each pack contains five different portraits.",
+		"invitationTitle": "Want to open a portrait pack?",
+		"invitationDescription": "Your image request was blocked. Try a pack of five ready-made fashion portraits.",
+		"tryPack": "Try a pack",
+		"later": "Maybe later",
+		"close": "Close",
+		"open": "Open pack",
+		"opening": "Opening…",
+		"another": "Open another pack",
+		"revealed": "Your five portrait cards",
+		"checking": "Checking your access…",
+		"retryAccess": "Check access again",
+		"retryOpen": "Try opening again",
+		"openError": "The pack didn’t load. Try opening it again.",
+		"backToCards": "Back to cards",
+		"saveImage": "Save image",
+		"signIn": "Sign in for 2 free packs",
+		"plans": "See plans and credit packs",
+		"access": {
+			"guestTrial": "{count, plural, one {# free guest pack left} other {# free guest packs left}}",
+			"accountTrial": "{count, plural, one {# free pack left for your account} other {# free packs left for your account}}",
+			"guestUsed": "You’ve opened your two guest packs. Sign in for two more.",
+			"accountUsed": "Any paid subscription or credit pack unlocks unlimited openings.",
+			"unlocked": "Unlimited packs · No credits per opening"
+		}
+	},
 	"publicContent": {
 		"contact": {
 			"description": "Contact {appName} for support or to report prohibited content.",

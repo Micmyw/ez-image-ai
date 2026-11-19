@@ -59,6 +59,7 @@ export const config = {
 			"organization-invitation",
 			"pricing",
 			"photo-to-coloring-page",
+			"portrait-packs",
 			"christmas-wallpaper",
 			"gta-6-wallpaper",
 			"gta-loading-screen-generator",

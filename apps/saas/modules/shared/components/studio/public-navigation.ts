@@ -58,6 +58,12 @@ export const PUBLIC_NAVIGATION_GROUPS = [
 		labelKey: "studio.tools.imageTools",
 		links: [
 			{
+				href: "/portrait-packs",
+				labelKey: "portraitPacks.name",
+				descriptionKey: "portraitPacks.navigationDescription",
+				icon: "image",
+			},
+			{
 				href: "/ai-svg-generator",
 				labelKey: "studio.tools.svgGenerator",
 				descriptionKey: "studio.tools.svgGeneratorDescription",

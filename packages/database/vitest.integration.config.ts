@@ -5,6 +5,7 @@ export default defineConfig({
 		include: [
 			"prisma/queries/media/**/*.integration.test.ts",
 			"prisma/queries/admin-*.integration.test.ts",
+			"prisma/queries/portrait-packs.integration.test.ts",
 			"shared/admin-analytics.sql.integration.test.ts",
 		],
 		fileParallelism: false,
