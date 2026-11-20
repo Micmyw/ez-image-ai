@@ -48,14 +48,18 @@ async function viewer(context: ApiRequestContext, bootstrap: boolean) {
 		const hash = createHash("sha256")
 			.update(`portrait-pack-account-v1:${session.user.id}`)
 			.digest("hex");
-		return { subjectKey: `account:${hash}`, userId: session.user.id };
+		return {
+			subjectKey: `account:${hash}`,
+			userId: session.user.id,
+			unlimited: session.user.role === "admin" || (await hasPortraitPackPurchase(session.user.id)),
+		};
 	}
 	const browser = bootstrap
 		? ensureGuestBrowserSubject(context.headers, context.responseHeaders)
 		: readGuestBrowserSubject(context.headers);
 	if (!browser)
 		throw new ORPCError("PRECONDITION_FAILED", { message: "PORTRAIT_PACK_BROWSER_REQUIRED" });
-	return { subjectKey: `browser:${browser}`, userId: null };
+	return { subjectKey: `browser:${browser}`, userId: null, unlimited: false };
 }
 
 function makePack(subjectKey: string, requestId: string) {
@@ -93,9 +97,8 @@ const status = publicProcedure
 		z.object({ state: stateSchema, remaining: remainingSchema, cards: cardsSchema.nullable() }),
 	)
 	.handler(async ({ context }) => {
-		const { subjectKey, userId } = await viewer(context, true);
-		if (userId && (await hasPortraitPackPurchase(userId)))
-			return { state: "unlocked", remaining: null, cards: null };
+		const { subjectKey, userId, unlimited } = await viewer(context, true);
+		if (unlimited) return { state: "unlocked", remaining: null, cards: null };
 		const issued = await getPortraitPackTrials(subjectKey);
 		const receipt = issued.at(-1);
 		return {
@@ -125,9 +128,9 @@ const open = publicProcedure
 	.handler(async ({ context, input }) => {
 		const expectedOrigin = new URL(getBaseUrl(process.env.NEXT_PUBLIC_SAAS_URL)).origin;
 		if (context.headers.get("origin") !== expectedOrigin) throw new ORPCError("FORBIDDEN");
-		const { subjectKey, userId } = await viewer(context, false);
+		const { subjectKey, userId, unlimited } = await viewer(context, false);
 		const cardKeys = makePack(subjectKey, input.requestId);
-		if (userId && (await hasPortraitPackPurchase(userId))) {
+		if (unlimited) {
 			return { state: "unlocked", remaining: null, cards: cardKeys, opened: true };
 		}
 		const { receipt, used } = await issuePortraitPackTrial({

@@ -24,8 +24,8 @@ vi.mock("@repo/database", () => ({
 const origin = "https://packs.example";
 const firstRequest = "630db51b-0ad5-4f20-acc2-a3a5d5b23032";
 const secondRequest = "1553942f-7e12-46dd-b120-fa881b2699c7";
-const session = (id: string, isAnonymous = false) =>
-	({ user: { id, isAnonymous, email: `${id}@example.com` } }) as Awaited<
+const session = (id: string, isAnonymous = false, role = "user") =>
+	({ user: { id, isAnonymous, role, email: `${id}@example.com` } }) as Awaited<
 		ReturnType<typeof auth.api.getSession>
 	>;
 const context = (cookie = "", requestOrigin = origin) => ({
@@ -124,8 +124,27 @@ describe("portrait pack access", () => {
 		expect(issuePortraitPackTrial).not.toHaveBeenCalled();
 	});
 
+	it("unlocks repeatable packs for signed-in administrators without reading purchase or trial data", async () => {
+		vi.mocked(auth.api.getSession).mockResolvedValue(session("administrator", false, "admin"));
+		await expect(
+			call(portraitPacksRouter.status, undefined, { context: context() }),
+		).resolves.toEqual({ state: "unlocked", remaining: null, cards: null });
+		for (const requestId of [firstRequest, secondRequest]) {
+			await expect(
+				call(portraitPacksRouter.open, { requestId }, { context: context() }),
+			).resolves.toMatchObject({
+				state: "unlocked",
+				remaining: null,
+				opened: true,
+			});
+		}
+		expect(hasPortraitPackPurchase).not.toHaveBeenCalled();
+		expect(getPortraitPackTrials).not.toHaveBeenCalled();
+		expect(issuePortraitPackTrial).not.toHaveBeenCalled();
+	});
+
 	it("requires a signed guest browser or a registered account and rejects another origin", async () => {
-		vi.mocked(auth.api.getSession).mockResolvedValue(session("anon", true));
+		vi.mocked(auth.api.getSession).mockResolvedValue(session("anon", true, "admin"));
 		await expect(
 			call(
 				portraitPacksRouter.open,
